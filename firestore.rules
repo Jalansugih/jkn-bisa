@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function untuk otorisasi Administrator
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Satu-satunya sumber kebenaran untuk daftar email admin resmi.
+    // Harus selalu sinkron dengan ADMIN_EMAILS di src/lib/authService.ts.
+    function isAdminEmail() {
+      return request.auth.token.email in ['databasemanb@gmail.com', 'admin@binausaha.id'];
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isAdminEmail() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // Admins Collection
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Profil Pengguna (Users)
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+
+      // User boleh membuat profilnya sendiri, tapi TIDAK boleh langsung
+      // memberi dirinya sendiri role 'admin' (kecuali memang email admin
+      // resminya, yang sudah lolos isAdmin() secara terpisah).
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+        (
+          !('role' in request.resource.data) ||
+          request.resource.data.role == 'customer' ||
+          (request.resource.data.role == 'admin' && isAdminEmail())
+        );
+
+      // User boleh update profilnya sendiri (nama, WA, dsb) TAPI tidak
+      // boleh mengubah field role miliknya sendiri. Hanya admin yang boleh
+      // mengubah role user lain (mis. dari panel admin).
+      allow update: if isAdmin() ||
+        (
+          isSignedIn() && request.auth.uid == userId &&
+          request.resource.data.get('role', 'customer') == resource.data.get('role', 'customer')
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // Pesanan (Orders)
+    match /orders/{orderId} {
+      allow create: if request.resource.data.keys().hasAll(['id', 'product', 'brand', 'name', 'wa', 'total', 'status'])
+                    && (request.resource.data.uid == null || (isSignedIn() && request.resource.data.uid == request.auth.uid));
+      allow get: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Request for Quotation (RFQs)
+    match /rfqs/{rfqId} {
+      allow create: if request.resource.data.keys().hasAll(['nama', 'whatsapp', 'kategori', 'detail']);
+      allow read, list, update, delete: if isAdmin();
+    }
+
+    // Katalog Produk & Layanan (Products)
+    match /products/{productId} {
+      allow read, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Artikel & Panduan Edukasi (Articles)
+    match /articles/{articleId} {
+      allow read, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}
+

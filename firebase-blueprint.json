@@ -1,0 +1,259 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profil pengguna yang terdaftar di BinaUsaha",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "ID unik pengguna dari Firebase Auth"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nama lengkap pengguna",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Email pengguna",
+          "format": "email",
+          "maxLength": 150
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "Nomor WhatsApp",
+          "maxLength": 30
+        },
+        "businessName": {
+          "type": "string",
+          "description": "Nama brand / usaha pengguna",
+          "maxLength": 150
+        },
+        "role": {
+          "type": "string",
+          "description": "Peran pengguna dalam sistem",
+          "enum": ["customer", "admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Waktu pendaftaran"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Waktu pembaruan profil terakhir"
+        }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "OrderItem": {
+      "title": "OrderItem",
+      "description": "Pesanan layanan atau paket usaha di BinaUsaha",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Kode unik pesanan (misal BU-12345)",
+          "pattern": "^[A-Z0-9_-]+$",
+          "maxLength": 32
+        },
+        "uid": {
+          "type": "string",
+          "description": "ID user pemilik pesanan jika terautentikasi",
+          "maxLength": 128
+        },
+        "product": {
+          "type": "string",
+          "description": "Nama paket atau layanan yang dipesan",
+          "maxLength": 200
+        },
+        "brand": {
+          "type": "string",
+          "description": "Nama brand / usaha pemesan",
+          "maxLength": 200
+        },
+        "name": {
+          "type": "string",
+          "description": "Nama pemesan",
+          "maxLength": 100
+        },
+        "wa": {
+          "type": "string",
+          "description": "Nomor WhatsApp pemesan",
+          "maxLength": 30
+        },
+        "email": {
+          "type": "string",
+          "description": "Email pemesan",
+          "maxLength": 150
+        },
+        "total": {
+          "type": "string",
+          "description": "Nominal total harga pesanan dalam format IDR",
+          "maxLength": 50
+        },
+        "date": {
+          "type": "string",
+          "description": "Tanggal pembuatan pesanan",
+          "maxLength": 50
+        },
+        "status": {
+          "type": "string",
+          "description": "Status pengerjaan pesanan",
+          "enum": ["Verifikasi", "Pengerjaan", "QC & Training", "Selesai"]
+        },
+        "addons": {
+          "type": "array",
+          "description": "Daftar add-on tambahan pesanan"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan khusus atau progress pengerjaan",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Server timestamp saat pesanan dibuat"
+        }
+      },
+      "required": ["id", "product", "brand", "name", "wa", "total", "status"]
+    },
+    "RfqItem": {
+      "title": "RfqItem",
+      "description": "Pengajuan kebutuhan / request for quotation dari pengguna",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID unik RFQ (misal RFQ-12345)"
+        },
+        "nama": {
+          "type": "string",
+          "description": "Nama pengaju",
+          "maxLength": 100
+        },
+        "perusahaan": {
+          "type": "string",
+          "description": "Nama perusahaan / instansi",
+          "maxLength": 150
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "Nomor WhatsApp",
+          "maxLength": 30
+        },
+        "email": {
+          "type": "string",
+          "description": "Email pengaju",
+          "maxLength": 150
+        },
+        "kategori": {
+          "type": "string",
+          "description": "Kategori kebutuhan",
+          "maxLength": 100
+        },
+        "lokasi": {
+          "type": "string",
+          "description": "Lokasi usaha / proyek",
+          "maxLength": 150
+        },
+        "detail": {
+          "type": "string",
+          "description": "Rincian kebutuhan pengadaan",
+          "maxLength": 2000
+        },
+        "jumlah": {
+          "type": "string",
+          "description": "Volume / jumlah",
+          "maxLength": 100
+        },
+        "waktu": {
+          "type": "string",
+          "description": "Target waktu pengerjaan",
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "description": "Status tindak lanjut",
+          "enum": ["Baru", "Diproses", "Penawaran Terkirim", "Deal", "Batal"]
+        },
+        "adminNotes": {
+          "type": "string",
+          "description": "Catatan internal tim admin",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Waktu pengajuan"
+        }
+      },
+      "required": ["nama", "whatsapp", "kategori", "detail"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Produk atau paket layanan UMKM",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik produk" },
+        "name": { "type": "string", "description": "Nama paket / layanan" },
+        "category": { "type": "string", "description": "Kategori produk", "enum": ["website", "pos", "legalitas", "bundling"] },
+        "price": { "type": "number", "description": "Harga paket dalam Rupiah" },
+        "originalPrice": { "type": "number", "description": "Harga coret promo" },
+        "discountPct": { "type": "number", "description": "Persentase diskon" },
+        "priceUnit": { "type": "string", "description": "Satuan harga (cth: / sekali bayar, / tahun)" },
+        "description": { "type": "string", "description": "Deskripsi singkat produk" },
+        "badge": { "type": "string", "description": "Label badge" },
+        "badgeType": { "type": "string", "description": "Tipe warna badge" },
+        "bonus": { "type": "string", "description": "Bonus khusus paket" },
+        "features": { "type": "array", "description": "Daftar fitur layanan" },
+        "iconName": { "type": "string", "description": "Nama ikon Lucide" },
+        "popular": { "type": "boolean", "description": "Status produk terpopuler" }
+      },
+      "required": ["id", "name", "category", "price", "description", "features"]
+    },
+    "Article": {
+      "title": "Article",
+      "description": "Artikel panduan dan edukasi bisnis UMKM",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID unik artikel" },
+        "title": { "type": "string", "description": "Judul artikel" },
+        "category": { "type": "string", "description": "Kategori artikel" },
+        "categoryLabel": { "type": "string", "description": "Label kategori" },
+        "date": { "type": "string", "description": "Tanggal publikasi" },
+        "readTime": { "type": "string", "description": "Estimasi waktu baca" },
+        "image": { "type": "string", "description": "Tautan URL gambar cover" },
+        "excerpt": { "type": "string", "description": "Ringkasan artikel" },
+        "contentHtml": { "type": "string", "description": "Konten lengkap artikel dalam format HTML" },
+        "author": { "type": "string", "description": "Nama penulis" },
+        "authorRole": { "type": "string", "description": "Peran atau jabatan penulis" },
+        "featured": { "type": "boolean", "description": "Apakah artikel unggulan" },
+        "views": { "type": "number", "description": "Jumlah pembaca" },
+        "tags": { "type": "array", "description": "Daftar tag topik" }
+      },
+      "required": ["id", "title", "category", "excerpt", "contentHtml", "author"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Dokumen profil masing-masing pengguna"
+    },
+    "/orders/{orderId}": {
+      "schema": "OrderItem",
+      "description": "Dokumen pesanan yang disimpan secara terpusat di Firestore"
+    },
+    "/rfqs/{rfqId}": {
+      "schema": "RfqItem",
+      "description": "Dokumen pengajuan penawaran (RFQ) yang dikelola oleh admin"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Dokumen produk atau paket layanan yang tampil di katalog"
+    },
+    "/articles/{articleId}": {
+      "schema": "Article",
+      "description": "Dokumen artikel edukasi dan panduan bisnis UMKM"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "BinaUsaha - Platform Digital UMKM Indonesia",
+  "description": "Platform digital terpadu UMKM Indonesia untuk legalitas PT/CV, website, sistem kasir POS, dan edukasi bisnis dengan integrasi Firestore real-time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

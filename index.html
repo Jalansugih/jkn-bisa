@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="id" class="scroll-smooth scroll-pt-24">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BinaUsaha - Platform Digital UMKM Indonesia</title>
+    <meta name="description" content="BinaUsaha membantu UMKM mengurus legalitas, website, dan sistem kasir dalam satu platform. Konsultasi gratis, mulai sekarang." />
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Fix for environments where window.fetch has only a getter -->
+    <script>
+      (function() {
+        try {
+          var originalFetch = window.fetch ? window.fetch.bind(window) : undefined;
+          var activeFetch = originalFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return activeFetch;
+            },
+            set: function(val) {
+              activeFetch = val;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (err) {
+          console.warn('Fetch shim warning:', err);
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-[#09090B] antialiased text-[#FAFAFA]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
