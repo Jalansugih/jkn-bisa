@@ -13,8 +13,6 @@ import {
   Menu,
   X,
   ShieldCheck,
-  Bell,
-  Sparkles,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -163,7 +161,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 {currentUser?.name || 'Administrator'}
               </p>
               <p className="text-[11px] text-slate-400 truncate font-mono">
-                {currentUser?.email || 'admin@binausaha.id'}
+                {currentUser?.email || 'Akun Administrator'}
               </p>
             </div>
           </div>

@@ -13,8 +13,8 @@ menyalakannya di project Supabase Anda.
 Ini akan membuat:
 - Tabel `profiles`, `orders`, `rfqs`, `products`, `articles`
 - RLS (Row Level Security) policy yang setara dengan `firestore.rules` lama
-- Fungsi `is_admin()` dan `is_admin_email()` — daftar email admin ada di sini,
-  **harus selalu disinkronkan manual** dengan `ADMIN_EMAILS` di
+- Fungsi `is_admin()` dan `profiles.role = admin` — daftar email admin ada di sini,
+  **harus selalu disinkronkan manual** dengan `profiles.role` di
   `src/lib/authService.ts` (persis seperti aturan lama di Firestore Rules).
 - Trigger `on_auth_user_created` — otomatis membuat baris `profiles` setiap
   ada user baru daftar (email/password maupun Google).
@@ -108,8 +108,8 @@ sama persis**, jadi tidak ada komponen `.tsx` lain yang perlu diubah selain
 ## 7. Checklist sebelum deploy produksi
 
 - [ ] `supabase/schema.sql` sudah dijalankan di project Supabase produksi
-- [ ] Email admin di `is_admin_email()` (SQL) sudah sinkron dengan
-      `ADMIN_EMAILS` di `src/lib/authService.ts`
+- [ ] Email admin di `profiles.role = admin` (SQL) sudah sinkron dengan
+      `profiles.role` di `src/lib/authService.ts`
 - [ ] Google OAuth provider aktif + redirect URL produksi terdaftar
 - [ ] `VITE_SUPABASE_URL` & `VITE_SUPABASE_ANON_KEY` sudah diisi di env
       hosting (Vercel/Netlify/VPS dsb) — **bukan cuma di `.env.local`**

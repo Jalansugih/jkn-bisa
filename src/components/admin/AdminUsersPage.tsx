@@ -2,25 +2,21 @@ import React, { useState } from 'react';
 import { AdminUserListItem } from '../../types/admin';
 import { updateUserRole } from '../../lib/adminService';
 import {
-  Users,
   Search,
-  Shield,
   ShieldCheck,
-  ShieldAlert,
   User,
   MessageCircle,
   Mail,
-  Building,
-  Calendar,
   Loader2,
 } from 'lucide-react';
 
 interface AdminUsersPageProps {
   users: AdminUserListItem[];
+  currentUserId?: string | null;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
-export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ users, showToast }) => {
+export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ users, currentUserId, showToast }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
@@ -36,6 +32,11 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ users, showToast
   });
 
   const handleToggleRole = async (user: AdminUserListItem) => {
+    if (user.id === currentUserId) {
+      showToast('Anda tidak bisa mencabut hak admin dari akun Anda sendiri. Minta admin lain melakukannya.', 'warning');
+      return;
+    }
+
     const newRole = user.role === 'admin' ? 'customer' : 'admin';
     const confirmMsg =
       newRole === 'admin'
@@ -104,8 +105,8 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ users, showToast
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
-                  const normalizedEmail = (user.email || '').trim().toLowerCase();
-                  const isAdmin = user.role === 'admin' || normalizedEmail === 'databasemanb@gmail.com' || normalizedEmail === 'admin@binausaha.id';
+                  const isAdmin = user.role === 'admin';
+                  const isSelf = user.id === currentUserId;
                   return (
                     <tr key={user.id} className="hover:bg-slate-50/80 transition">
                       <td className="px-5 py-4 whitespace-nowrap">
@@ -114,7 +115,14 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ users, showToast
                             {user.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900">{user.name}</div>
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              {user.name}
+                              {isSelf && (
+                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                                  Anda
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[11px] text-slate-400 font-mono">{user.id}</div>
                           </div>
                         </div>
@@ -157,13 +165,13 @@ export const AdminUsersPage: React.FC<AdminUsersPageProps> = ({ users, showToast
                       <td className="px-5 py-4 whitespace-nowrap text-right">
                         <button
                           onClick={() => handleToggleRole(user)}
-                          disabled={updatingUserId === user.id || (user.email || '').trim().toLowerCase() === 'databasemanb@gmail.com' || (user.email || '').trim().toLowerCase() === 'admin@binausaha.id'}
+                          disabled={updatingUserId === user.id || isSelf}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-40 ${
                             isAdmin
                               ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
                               : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
                           }`}
-                          title={(user.email || '').trim().toLowerCase() === 'databasemanb@gmail.com' || (user.email || '').trim().toLowerCase() === 'admin@binausaha.id' ? 'Super Admin Utama' : undefined}
+                          title={isSelf ? 'Tidak bisa mengubah hak akses akun sendiri' : undefined}
                         >
                           {updatingUserId === user.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" />

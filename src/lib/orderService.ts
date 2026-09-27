@@ -19,8 +19,11 @@ export function generateOrderId(): string {
 
 /**
  * Baris tabel `orders` di Supabase (snake_case, sesuai supabase/schema.sql).
+ * Diekspor supaya adminService.ts memakai tipe & mapping yang SAMA persis
+ * (dulu ada duplikat interface + fungsi mapping di adminService.ts yang
+ * gampang tidak sinkron kalau kolom database berubah).
  */
-interface OrderRow {
+export interface OrderRow {
   id: string;
   uid: string | null;
   product: string;
@@ -31,7 +34,7 @@ interface OrderRow {
   wa: string;
   email: string | null;
   total: string;
-  date: string | null;
+  order_date: string | null;
   status: OrderItem['status'];
   addons: string[] | null;
   notes: string | null;
@@ -39,7 +42,7 @@ interface OrderRow {
   document_link: string | null;
 }
 
-function rowToOrderItem(row: OrderRow): OrderItem {
+export function rowToOrderItem(row: OrderRow): OrderItem {
   return {
     id: row.id,
     uid: row.uid,
@@ -51,7 +54,7 @@ function rowToOrderItem(row: OrderRow): OrderItem {
     wa: row.wa || '',
     email: row.email || '',
     total: row.total || 'Rp 0',
-    date: row.date || '',
+    date: row.order_date || '',
     status: row.status || 'Verifikasi',
     addons: Array.isArray(row.addons) ? row.addons : [],
     notes: row.notes || '',
@@ -118,7 +121,7 @@ export async function createOrder(
     wa: order.wa,
     email: order.email || null,
     total: order.total,
-    date: createdOrder.date,
+    order_date: createdOrder.date,
     status: 'Verifikasi',
     addons: order.addons || [],
     notes: order.notes || null,
@@ -288,7 +291,7 @@ export async function trackOrder(searchTerm: string): Promise<OrderItem | null> 
     brand: row.brand || '',
     status: row.status || 'Verifikasi',
     notes: row.notes || '',
-    date: row.date || '',
+    date: row.order_date || '',
     uid: null,
     name: '',
     wa: '',

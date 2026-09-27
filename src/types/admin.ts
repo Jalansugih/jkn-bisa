@@ -1,6 +1,6 @@
 import { OrderItem, AuthUser } from './index';
 
-export type AdminTab = 'overview' | 'orders' | 'rfq' | 'products' | 'articles' | 'users' | 'settings';
+export type AdminTab = 'overview' | 'orders' | 'rfq' | 'products' | 'articles' | 'users';
 
 export interface RfqItem {
   id: string;

@@ -41,7 +41,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onPreviewArticle,
   showToast,
 }) => {
-  const [currentTab, setCurrentTab] = useState<AdminTab>('overview');
+  const getAdminTabFromPath = (): AdminTab => {
+    const segment = window.location.pathname.replace(/^\/admin\/?/, '').split('/')[0];
+    const validTabs: AdminTab[] = ['overview', 'orders', 'rfq', 'products', 'articles', 'users'];
+    return validTabs.includes(segment as AdminTab) ? (segment as AdminTab) : 'overview';
+  };
+
+  const [currentTab, setCurrentTab] = useState<AdminTab>(getAdminTabFromPath);
+
+  const navigateAdminTab = (tab: AdminTab, replace = false) => {
+    const path = tab === 'overview' ? '/admin' : `/admin/${tab}`;
+    if (replace) {
+      window.history.replaceState({}, '', path);
+    } else if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+    setCurrentTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handleAdminLocation = () => {
+      if (!window.location.pathname.startsWith('/admin')) return;
+      setCurrentTab(getAdminTabFromPath());
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('popstate', handleAdminLocation);
+    return () => window.removeEventListener('popstate', handleAdminLocation);
+  }, []);
 
   // Order clicked from Overview's "Pesanan Terbaru" list, forwarded to the
   // Orders page so it opens directly in the edit modal instead of just
@@ -103,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     >
       <AdminLayout
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={(tab) => navigateAdminTab(tab)}
         currentUser={currentUser}
         onLogout={onLogout}
         onGoHome={onGoHome}
@@ -120,10 +148,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             usersCount={allUsers.length}
             productsCount={productsList.length}
             articlesCount={articlesList.length}
-            onNavigateTab={(tab) => setCurrentTab(tab)}
+            onNavigateTab={(tab) => navigateAdminTab(tab)}
             onSelectOrder={(ord) => {
               setOrderToOpen(ord);
-              setCurrentTab('orders');
+              navigateAdminTab('orders');
             }}
           />
         )}
@@ -158,7 +186,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {currentTab === 'users' && (
-          <AdminUsersPage users={allUsers} showToast={showToast} />
+          <AdminUsersPage users={allUsers} currentUserId={currentUser?.id} showToast={showToast} />
         )}
       </AdminLayout>
     </AdminGuard>

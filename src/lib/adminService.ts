@@ -1,42 +1,11 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { OrderItem } from '../types';
 import { AdminStats, AdminUserListItem } from '../types/admin';
-
-interface OrderRow {
-  id: string;
-  uid: string | null;
-  product: string;
-  brand: string;
-  name: string;
-  wa: string;
-  email: string | null;
-  total: string;
-  date: string | null;
-  status: OrderItem['status'];
-  addons: string[] | null;
-  notes: string | null;
-  tracking_number: string | null;
-  document_link: string | null;
-}
-
-function rowToOrderItem(row: OrderRow): OrderItem {
-  return {
-    id: row.id,
-    uid: row.uid,
-    product: row.product || '',
-    brand: row.brand || '',
-    name: row.name || '',
-    wa: row.wa || '',
-    email: row.email || '',
-    total: row.total || 'Rp 0',
-    date: row.date || '',
-    status: row.status || 'Verifikasi',
-    addons: Array.isArray(row.addons) ? row.addons : [],
-    notes: row.notes || '',
-    trackingNumber: row.tracking_number || '',
-    documentLink: row.document_link || '',
-  };
-}
+// OrderRow & rowToOrderItem SENGAJA diimpor dari orderService.ts, bukan
+// didefinisikan ulang di sini — dulu ada 2 salinan identik yang gampang
+// tidak sinkron begitu kolom tabel `orders` berubah (contoh nyata: rename
+// `date` -> `order_date` kemarin cuma kena satu salinan).
+import { OrderRow, rowToOrderItem } from './orderService';
 
 /**
  * Subscribe real-time ke SEMUA order di Supabase untuk Admin portal

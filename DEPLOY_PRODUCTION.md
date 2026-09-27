@@ -104,8 +104,8 @@ Firebase Hosting akan melayani folder `dist`.
 
 Dua email administrator bawaan yang diizinkan oleh Rules:
 
-- `databasemanb@gmail.com`
-- `admin@binausaha.id`
+- Tidak ada daftar email admin di client.
+- Admin pertama ditetapkan melalui SQL bootstrap; admin berikutnya lewat Admin → Pengguna.
 
 Jika ingin mengganti email administrator, ubah daftar email secara konsisten di:
 

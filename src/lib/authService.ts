@@ -4,18 +4,14 @@ import { AuthUser } from '../types';
 
 const LOCAL_USER_KEY = 'bu_current_user';
 
-export const ADMIN_EMAILS = [
-  'databasemanb@gmail.com',
-  'admin@binausaha.id',
-];
-
+/**
+ * Satu-satunya sumber kebenaran untuk status admin adalah kolom
+ * `profiles.role` di database. Tidak ada daftar email admin di client.
+ * Admin pertama ditetapkan sekali melalui SQL bootstrap, lalu admin
+ * berikutnya dikelola dari Admin > Pengguna melalui updateUserRole().
+ */
 export function checkIsAdmin(user: AuthUser | null): boolean {
-  if (!user) return false;
-  if (user.role === 'admin') return true;
-  if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim())) {
-    return true;
-  }
-  return false;
+  return user?.role === 'admin';
 }
 
 export class AuthNotConfiguredError extends Error {
@@ -25,6 +21,66 @@ export class AuthNotConfiguredError extends Error {
     );
     this.name = 'AuthNotConfiguredError';
   }
+}
+
+/**
+ * Menerjemahkan error dari Supabase Auth menjadi pesan Bahasa Indonesia
+ * yang ramah pengguna. Dipetakan dari `AuthError.code` resmi Supabase
+ * (https://supabase.com/docs/guides/auth/debugging/error-codes) — BUKAN
+ * kode error Firebase (`auth/...`) seperti versi sebelumnya, yang tidak
+ * pernah cocok sehingga selalu jatuh ke pesan generik.
+ */
+export function getAuthErrorMessage(err: unknown): string {
+  if (err instanceof AuthNotConfiguredError) return err.message;
+
+  const code = (err as { code?: string })?.code || '';
+  const message = ((err as { message?: string })?.message || '').toLowerCase();
+
+  switch (code) {
+    case 'invalid_credentials':
+    case 'user_not_found':
+      return 'Email atau kata sandi salah. Silakan periksa kembali.';
+    case 'email_exists':
+    case 'user_already_exists':
+    case 'identity_already_exists':
+      return 'Email ini sudah terdaftar. Coba menu "Sudah Punya Akun" untuk masuk.';
+    case 'email_not_confirmed':
+      return 'Email Anda belum diverifikasi. Cek kotak masuk (atau folder spam) untuk link konfirmasi.';
+    case 'weak_password':
+      return 'Kata sandi terlalu lemah, gunakan minimal 6 karakter dengan kombinasi huruf & angka.';
+    case 'same_password':
+      return 'Kata sandi baru tidak boleh sama dengan kata sandi lama.';
+    case 'over_email_send_rate_limit':
+    case 'over_request_rate_limit':
+      return 'Terlalu banyak percobaan. Silakan tunggu beberapa saat lalu coba lagi.';
+    case 'signup_disabled':
+      return 'Pendaftaran akun baru sedang dinonaktifkan sementara.';
+    case 'user_banned':
+      return 'Akun ini telah dinonaktifkan. Hubungi CS BinaUsaha untuk bantuan.';
+    case 'validation_failed':
+    case 'bad_json':
+      return 'Data yang dikirim tidak valid. Periksa kembali isian formulir.';
+  }
+
+  // Fallback: beberapa versi supabase-js/lingkungan lama belum mengirim
+  // `code`, jadi cocokkan pola pesan mentah sebagai jaring pengaman.
+  if (message.includes('invalid login credentials')) {
+    return 'Email atau kata sandi salah. Silakan periksa kembali.';
+  }
+  if (message.includes('already registered') || message.includes('already exists')) {
+    return 'Email ini sudah terdaftar. Coba menu "Sudah Punya Akun" untuk masuk.';
+  }
+  if (message.includes('password') && message.includes('least')) {
+    return 'Kata sandi terlalu lemah, gunakan minimal 6 karakter.';
+  }
+  if (message.includes('rate limit')) {
+    return 'Terlalu banyak percobaan. Silakan tunggu beberapa saat lalu coba lagi.';
+  }
+  if (message.includes('network') || message.includes('fetch')) {
+    return 'Koneksi bermasalah. Periksa internet Anda dan coba lagi.';
+  }
+
+  return (err as { message?: string })?.message || 'Terjadi kesalahan. Silakan coba lagi.';
 }
 
 interface RegisterInput {
@@ -82,7 +138,6 @@ interface ProfileRow {
 }
 
 function profileRowToAuthUser(row: ProfileRow): AuthUser {
-  const isAdm = row.role === 'admin' || (row.email ? ADMIN_EMAILS.includes(row.email.toLowerCase().trim()) : false);
   return {
     id: row.id,
     name: row.name || 'Mitra UMKM',
@@ -91,7 +146,7 @@ function profileRowToAuthUser(row: ProfileRow): AuthUser {
     businessName: row.business_name || undefined,
     avatar: row.avatar || undefined,
     provider: row.provider || 'form',
-    role: isAdm ? 'admin' : (row.role || 'customer'),
+    role: row.role === 'admin' ? 'admin' : 'customer',
     joinedAt: row.joined_at || joinedAtNow(),
   };
 }
@@ -105,18 +160,19 @@ function buildFallbackProfile(
   provider: AuthUser['provider'],
   extra?: Partial<AuthUser>
 ): AuthUser {
-  const email = sbUser.email || extra?.email;
-  const isAdm = extra?.role === 'admin' || (email ? ADMIN_EMAILS.includes(email.toLowerCase().trim()) : false);
-
+  // Fallback ini hanya dipakai saat baris `profiles` benar-benar tidak
+  // terbaca (race condition / DB error). Role sengaja default 'customer'
+  // di sini — status admin yang sebenarnya selalu diverifikasi ulang dari
+  // tabel `profiles` begitu koneksi pulih, bukan ditebak dari email di client.
   return {
     id: sbUser.id,
     name: extra?.name || sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || 'Mitra UMKM',
-    email,
+    email: sbUser.email || extra?.email,
     whatsapp: extra?.whatsapp,
     businessName: extra?.businessName,
     avatar: sbUser.user_metadata?.avatar_url || undefined,
     provider,
-    role: isAdm ? 'admin' : (extra?.role || 'customer'),
+    role: extra?.role === 'admin' ? 'admin' : 'customer',
     joinedAt: joinedAtNow(),
   };
 }
@@ -314,6 +370,35 @@ export async function loginWithGoogle(): Promise<AuthUser> {
 }
 
 /**
+ * Kirim email "lupa kata sandi" (Supabase mengirim magic link reset).
+ * Setelah user klik link di email, mereka diarahkan kembali ke situs ini
+ * dengan sesi pemulihan aktif; event `PASSWORD_RECOVERY` akan diteruskan
+ * lewat window event `binausaha:password-recovery` (lihat subscribeToAuthChanges)
+ * supaya UI bisa menampilkan form "Atur Kata Sandi Baru".
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new AuthNotConfiguredError();
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw error;
+}
+
+/**
+ * Set kata sandi baru. Hanya berfungsi ketika ada sesi pemulihan aktif
+ * (setelah user membuka link reset password dari email).
+ */
+export async function updatePassword(newPassword: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new AuthNotConfiguredError();
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
+/**
  * Logout.
  */
 export async function logout(): Promise<void> {
@@ -353,7 +438,12 @@ export function subscribeToAuthChanges(
 
   if (isSupabaseConfigured && supabase) {
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session: Session | null) => {
+      async (event, session: Session | null) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          window.dispatchEvent(new CustomEvent('binausaha:password-recovery'));
+          return;
+        }
+
         const sbUser = session?.user;
         if (!sbUser) {
           setLocalUser(null);

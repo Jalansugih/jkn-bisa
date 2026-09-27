@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { OrderItem, ToastMessage, RfqFormData, AuthUser, Product, Article } from './types';
-import { subscribeToAuthChanges, logout as firebaseLogout } from './lib/authService';
+import { subscribeToAuthChanges, logout } from './lib/authService';
 import { createOrder, subscribeToMyOrders } from './lib/orderService';
 import { subscribeToProducts } from './lib/productService';
 import { subscribeToArticles } from './lib/articleService';
-import { isSupabaseConfigured } from './lib/supabase';
 
 // Layout components
 import { TopPromoBar } from './components/layout/TopPromoBar';
@@ -38,8 +37,6 @@ import { SingleArticlePage } from './components/articles/SingleArticlePage';
 // Dashboard component
 import UserDashboard from './components/dashboard/UserDashboard';
 
-// Admin Portal Dashboard
-import { AdminDashboard } from './components/admin/AdminDashboard';
 
 // Service Pages (Jasa & Solusi)
 import { DigitalServicePage } from './components/services/DigitalServicePage';
@@ -60,6 +57,7 @@ import { TermsModal } from './components/modals/TermsModal';
 import { PrivacyModal } from './components/modals/PrivacyModal';
 import { RfqModal } from './components/modals/RfqModal';
 import { AuthModal } from './components/modals/AuthModal';
+import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
 
 export const App: React.FC = () => {
   // Modal states
@@ -81,6 +79,11 @@ export const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'register' | 'login'>('register');
 
+  // Password recovery modal - opened automatically when Supabase detects a
+  // valid "forgot password" recovery link (see authService.ts, event
+  // 'binausaha:password-recovery').
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState<boolean>(false);
+
   // Authenticated user state, synced in real time from Supabase Auth (see useEffect below)
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authUid, setAuthUid] = useState<string | null>(null);
@@ -93,28 +96,28 @@ export const App: React.FC = () => {
     return unsubscribe;
   }, []);
 
+  // Open the "set new password" modal when the user arrives via a
+  // password-recovery email link.
+  useEffect(() => {
+    const handlePasswordRecovery = () => setIsResetPasswordModalOpen(true);
+    window.addEventListener('binausaha:password-recovery', handlePasswordRecovery);
+    return () => window.removeEventListener('binausaha:password-recovery', handlePasswordRecovery);
+  }, []);
+
   const [selectedArticleKey, setSelectedArticleKey] = useState<string>('art_1');
   const [isArticleModalOpen, setIsArticleModalOpen] = useState<boolean>(false);
 
-  // View state: 'home' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin'
+  // Public pages remain state-driven. The dedicated /admin entry is mounted by main.tsx.
   const [currentView, setCurrentView] = useState<
     'home' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin'
-  >('home');
+>('home');
 
-  // Listen to hash changes (e.g. #admin)
-  useEffect(() => {
-    const handleHashChange = () => {
-      if (window.location.hash === '#admin') {
-        setCurrentView('admin');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    };
-    if (window.location.hash === '#admin') {
-      setCurrentView('admin');
-    }
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  const navigateAppPath = (path: string, replace = false) => {
+    if (replace) window.history.replaceState({}, '', path);
+    else window.history.pushState({}, '', path);
+    setCurrentView(path === '/admin' || path.startsWith('/admin/') ? 'admin' : 'home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Selected product filter for smooth jumps
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
@@ -289,7 +292,7 @@ export const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await firebaseLogout();
+      await logout();
       showToast('Anda telah keluar dari akun.', 'info');
     } catch (err) {
       showToast('Gagal keluar dari akun. Silakan coba lagi.', 'error');
@@ -346,10 +349,7 @@ export const App: React.FC = () => {
             setCurrentView('dashboard');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onOpenAdmin={() => {
-            setCurrentView('admin');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onOpenAdmin={() => navigateAppPath('/admin')}
           onOpenServicePage={handleNavigateService}
           onSelectNeedCategory={(cat) => {
             setCurrentView('home');
@@ -379,27 +379,12 @@ export const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1">
         {currentView === 'admin' ? (
-          <AdminDashboard
-            currentUser={currentUser}
-            products={products}
-            articles={articles}
-            onOpenLogin={() => {
-              setAuthModalMode('login');
-              setIsAuthModalOpen(true);
-            }}
-            onLogout={handleLogout}
-            onGoHome={() => {
-              setCurrentView('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOpenOrder={(serviceId) => {
-              if (serviceId) {
-                handleOpenOrder(serviceId);
-              }
-            }}
-            onPreviewArticle={handleOpenArticle}
-            showToast={showToast}
-          />
+          <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+            <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200 text-center">
+              <p className="font-semibold text-slate-800">Membuka Panel Admin…</p>
+              <button className="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold" onClick={() => window.location.assign('/admin')}>Buka /admin</button>
+            </div>
+          </div>
         ) : currentView === 'dashboard' ? (
           <UserDashboard
             user={
@@ -414,10 +399,7 @@ export const App: React.FC = () => {
                 : null
             }
             orders={orders}
-            onGoHome={() => {
-              setCurrentView('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onGoHome={() => navigateAppPath('/')}
             onOpenOrder={(serviceId) => {
               if (serviceId) {
                 handleOpenOrder(serviceId);
@@ -472,9 +454,7 @@ export const App: React.FC = () => {
             }}
             onSelectService={handleNavigateService}
             onOpenOrder={handleOpenOrder}
-            onOpenRfq={(kategori) => {
-              setIsRfqModalOpen(true);
-            }}
+            onOpenRfq={() => setIsRfqModalOpen(true)}
             onOpenConsultation={() => setIsConsultModalOpen(true)}
             onAskWhatsapp={handleAskWhatsapp}
             showToast={showToast}
@@ -489,9 +469,7 @@ export const App: React.FC = () => {
             }}
             onSelectService={handleNavigateService}
             onOpenOrder={handleOpenOrder}
-            onOpenRfq={(kategori) => {
-              setIsRfqModalOpen(true);
-            }}
+            onOpenRfq={() => setIsRfqModalOpen(true)}
             onOpenConsultation={() => setIsConsultModalOpen(true)}
             onAskWhatsapp={handleAskWhatsapp}
             showToast={showToast}
@@ -506,9 +484,7 @@ export const App: React.FC = () => {
             }}
             onSelectService={handleNavigateService}
             onOpenOrder={handleOpenOrder}
-            onOpenRfq={(kategori) => {
-              setIsRfqModalOpen(true);
-            }}
+            onOpenRfq={() => setIsRfqModalOpen(true)}
             onOpenConsultation={() => setIsConsultModalOpen(true)}
             onAskWhatsapp={handleAskWhatsapp}
             showToast={showToast}
@@ -523,9 +499,7 @@ export const App: React.FC = () => {
             }}
             onSelectService={handleNavigateService}
             onOpenOrder={handleOpenOrder}
-            onOpenRfq={(kategori) => {
-              setIsRfqModalOpen(true);
-            }}
+            onOpenRfq={() => setIsRfqModalOpen(true)}
             onOpenConsultation={() => setIsConsultModalOpen(true)}
             onAskWhatsapp={handleAskWhatsapp}
             showToast={showToast}
@@ -628,10 +602,7 @@ export const App: React.FC = () => {
             handleOpenOrder(key);
           }}
           onOpenArticlesHub={(cat) => handleOpenArticlesHub(cat || 'all')}
-          onOpenAdmin={() => {
-            setCurrentView('admin');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onOpenAdmin={() => navigateAppPath('/admin')}
         />
       )}
 
@@ -708,6 +679,12 @@ export const App: React.FC = () => {
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
         initialMode={authModalMode}
+      />
+
+      <ResetPasswordModal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => setIsResetPasswordModalOpen(false)}
+        onSuccess={(message) => showToast(message, 'success')}
       />
     </div>
   );

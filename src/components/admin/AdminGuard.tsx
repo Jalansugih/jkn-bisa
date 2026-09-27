@@ -1,7 +1,7 @@
 import React from 'react';
 import { AuthUser } from '../../types';
 import { checkIsAdmin } from '../../lib/authService';
-import { ShieldAlert, Lock, ArrowLeft, LogIn, Sparkles, UserCheck } from 'lucide-react';
+import { ShieldAlert, Lock, ArrowLeft, LogIn, UserCheck } from 'lucide-react';
 
 interface AdminGuardProps {
   currentUser: AuthUser | null;
@@ -41,16 +41,13 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({
           </h2>
 
           <p className="text-slate-600 text-sm leading-relaxed mb-6">
-            Halaman ini khusus untuk manajemen operasional BinaUsaha. Silakan masuk menggunakan akun Google atau email Administrator Anda.
+            Halaman ini khusus untuk manajemen operasional BinaUsaha. Silakan masuk menggunakan akun yang sudah diberi hak akses Administrator.
           </p>
 
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 text-left">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-              <UserCheck className="w-4 h-4 text-emerald-600" />
-              <span>Email Terdaftar Admin:</span>
-            </div>
-            <p className="text-xs text-slate-500 font-mono">
-              databasemanb@gmail.com / admin@binausaha.id
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 text-left flex items-start gap-2">
+            <UserCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Belum punya akses admin? Hubungi Administrator utama untuk dipromosikan lewat menu Admin &rarr; Pengguna.
             </p>
           </div>
 
@@ -99,7 +96,7 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({
         </p>
 
         <p className="text-xs text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-200">
-          Jika Anda adalah pemilik sistem, silakan hubungi tim IT atau login menggunakan akun email admin yang telah ditentukan (<span className="font-mono text-slate-700">databasemanb@gmail.com / admin@binausaha.id</span>).
+          Jika Anda seharusnya punya akses admin, minta Administrator lain mempromosikan akun ini lewat menu Admin &rarr; Pengguna, lalu masuk ulang.
         </p>
 
         <div className="space-y-3">

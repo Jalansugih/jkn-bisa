@@ -6,19 +6,11 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- 0. Daftar email admin resmi (satu-satunya sumber kebenaran)
---    Harus SELALU sinkron dengan ADMIN_EMAILS di src/lib/authService.ts
+-- 0. ADMIN / IDENTITY
+--    Tidak ada lagi daftar email admin yang di-hardcode di client.
+--    Admin ditentukan oleh profiles.role. Untuk admin pertama, jalankan
+--    SQL bootstrap yang disediakan di bagian akhir file ini.
 -- ---------------------------------------------------------------------
-create or replace function public.is_admin_email(check_email text)
-returns boolean
-language sql
-immutable
-as $$
-  select lower(trim(check_email)) in (
-    'databasemanb@gmail.com',
-    'admin@binausaha.id'
-  );
-$$;
 
 -- ---------------------------------------------------------------------
 -- 1. PROFILES  (pengganti collection Firestore `users`)
@@ -48,15 +40,12 @@ stable
 security definer
 set search_path = public
 as $$
-  select
-    auth.uid() is not null
-    and (
-      public.is_admin_email(coalesce(auth.jwt() ->> 'email', ''))
-      or exists (
-        select 1 from public.profiles p
-        where p.id = auth.uid() and p.role = 'admin'
-      )
-    );
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'admin'
+  );
 $$;
 
 alter table public.profiles enable row level security;
@@ -69,16 +58,16 @@ drop policy if exists "profiles_insert" on public.profiles;
 create policy "profiles_insert" on public.profiles
   for insert with check (
     auth.uid() = id
-    and (
-      role = 'customer'
-      or (role = 'admin' and public.is_admin_email(coalesce(auth.jwt() ->> 'email', '')))
-    )
+    and role = 'customer'
   );
 
 drop policy if exists "profiles_update" on public.profiles;
 create policy "profiles_update" on public.profiles
   for update using (public.is_admin() or auth.uid() = id)
-  with check (public.is_admin() or auth.uid() = id);
+  with check (
+    public.is_admin()
+    or (auth.uid() = id and role = 'customer')
+  );
 
 drop policy if exists "profiles_delete" on public.profiles;
 create policy "profiles_delete" on public.profiles
@@ -99,7 +88,7 @@ begin
     new.email,
     new.raw_user_meta_data ->> 'avatar_url',
     case when new.raw_app_meta_data ->> 'provider' = 'google' then 'google' else 'form' end,
-    case when public.is_admin_email(coalesce(new.email, '')) then 'admin' else 'customer' end,
+    'customer',
     to_char(new.created_at, 'DD Month YYYY')
   )
   on conflict (id) do nothing;
@@ -128,7 +117,7 @@ create table if not exists public.orders (
   wa                text not null,
   email             text,
   total             text not null,
-  date              text,
+  order_date        text,
   status            text not null default 'Verifikasi'
                        check (status in ('Verifikasi','Pengerjaan','QC & Training','Selesai')),
   addons            text[] default '{}',
@@ -173,7 +162,7 @@ returns table (
   brand text,
   status text,
   notes text,
-  date text
+  order_date text
 )
 language plpgsql
 security definer
@@ -192,7 +181,7 @@ begin
   end if;
 
   return query
-    select o.id, o.product, o.brand, o.status, o.notes, o.date
+    select o.id, o.product, o.brand, o.status, o.notes, o.order_date
     from public.orders o
     where o.id = normalized_id
        or o.id = upper(trim(search_term))
@@ -352,3 +341,18 @@ create trigger trg_articles_updated_at before update on public.articles
 drop trigger if exists trg_profiles_updated_at on public.profiles;
 create trigger trg_profiles_updated_at before update on public.profiles
   for each row execute function public.set_updated_at();
+
+
+-- =====================================================================
+-- BOOTSTRAP ADMIN PERTAMA
+-- =====================================================================
+-- 1. Buat akun melalui form Daftar di website.
+-- 2. Ambil UUID akun dari Authentication -> Users, lalu jalankan:
+--
+-- update public.profiles
+-- set role = 'admin', updated_at = now()
+-- where id = 'UUID_USER_ANDA';
+--
+-- Setelah admin pertama aktif, gunakan menu Admin -> Pengguna -> Jadikan Admin
+-- untuk mengangkat akun berikutnya. RLS hanya mengizinkan admin mengubah role.
+-- =====================================================================
