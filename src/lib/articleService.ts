@@ -1,12 +1,9 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Article } from '../types';
 import { ARTICLES_DATA } from '../data/mockData';
+import { slugify, makeUniqueSlug } from './slug';
 
 const STORAGE_KEY = 'bu_articles_cache';
-
-function slugify(value: string): string {
-  return value.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-}
 
 interface ArticleRow {
   id: string;
@@ -94,6 +91,27 @@ function sortByCreatedAt(items: Article[]): Article[] {
   });
 }
 
+
+/** Ambil semua slug yang terpakai (kecuali milik artikel `excludeId`). */
+async function getTakenSlugs(excludeId?: string): Promise<Set<string>> {
+  const taken = new Set<string>();
+  if (isSupabaseConfigured && supabase) {
+    const { data } = await supabase.from('articles').select('id, slug');
+    (data || []).forEach((r: { id: string; slug: string | null }) => {
+      if (r.slug && r.id !== excludeId) taken.add(r.slug);
+    });
+  } else {
+    getLocalArticles().forEach((a) => { if (a.slug && a.id !== excludeId) taken.add(a.slug); });
+  }
+  return taken;
+}
+
+/** Slug final yang dijamin unik: pakai slug input admin, atau turunan dari judul. */
+export async function resolveUniqueSlug(input: string | undefined, title: string, excludeId?: string): Promise<string> {
+  const taken = await getTakenSlugs(excludeId);
+  return makeUniqueSlug(input?.trim() || title, taken);
+}
+
 /**
  * Real-time subscription ke tabel `articles` (pengganti onSnapshot Firestore).
  */
@@ -134,7 +152,8 @@ export function subscribeToArticles(callback: (articles: Article[]) => void): ()
 
 export async function addArticle(article: Article): Promise<void> {
   const id = (article.id || 'art_' + Date.now()).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-  const articleData = { ...article, id, slug: article.slug || slugify(article.title), status: article.status || 'DRAFT' };
+  const slug = await resolveUniqueSlug(article.slug, article.title);
+  const articleData = { ...article, id, slug, status: article.status || 'DRAFT' };
 
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase.from('articles').insert({ id, ...articleToRow(articleData) });
@@ -145,14 +164,26 @@ export async function addArticle(article: Article): Promise<void> {
 }
 
 export async function updateArticle(id: string, updates: Partial<Article>): Promise<void> {
-  const payload = { ...updates, ...(updates.title && !updates.slug ? { slug: slugify(updates.title) } : {}) };
+  const payload: Partial<Article> = { ...updates };
+
+  // Slug hanya diubah jika admin mengisinya dan nilainya berbeda dari yang tersimpan.
+  // Mengedit judul TIDAK mengubah slug, supaya link lama tidak rusak.
+  const current = getLocalArticles().find((a) => a.id === id);
+  const wantedSlug = updates.slug?.trim();
+  if (wantedSlug && wantedSlug !== current?.slug) {
+    payload.slug = await resolveUniqueSlug(wantedSlug, updates.title || current?.title || id, id);
+  } else if (!current?.slug && (updates.title || current?.title)) {
+    payload.slug = await resolveUniqueSlug(undefined, (updates.title || current?.title) as string, id);
+  } else {
+    delete payload.slug;
+  }
 
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase.from('articles').update(articleToRow(payload)).eq('id', id);
     if (error) throw new Error(`Gagal memperbarui artikel: ${error.message}`);
   }
 
-  saveLocalArticles(getLocalArticles().map((a) => a.id === id ? { ...a, ...updates, slug: updates.slug || (updates.title ? slugify(updates.title) : a.slug) } : a));
+  saveLocalArticles(getLocalArticles().map((a) => (a.id === id ? { ...a, ...payload } : a)));
 }
 
 export async function deleteArticle(id: string): Promise<void> {

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { OrderItem, ToastMessage, RfqFormData, AuthUser, Product, Article } from './types';
 import { subscribeToAuthChanges, logout } from './lib/authService';
 import { createOrder, subscribeToMyOrders } from './lib/orderService';
 import { subscribeToProducts } from './lib/productService';
 import { subscribeToArticles } from './lib/articleService';
+import { ARTICLES_DATA } from './data/mockData';
+import { ARTICLE_BASE_PATH, articlePath, parseArticleSlug, slugify } from './lib/slug';
 
 // Layout components
 import { TopPromoBar } from './components/layout/TopPromoBar';
@@ -105,12 +107,19 @@ export const App: React.FC = () => {
   }, []);
 
   const [selectedArticleKey, setSelectedArticleKey] = useState<string>('art_1');
+  // Slug dari URL (/artikel/<slug>) — sumber kebenaran untuk halaman detail artikel
+  const [articleSlug, setArticleSlug] = useState<string | null>(() => parseArticleSlug(window.location.pathname));
   const [isArticleModalOpen, setIsArticleModalOpen] = useState<boolean>(false);
 
   // Public pages remain state-driven. The dedicated /admin entry is mounted by main.tsx.
   const [currentView, setCurrentView] = useState<
     'home' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin'
->('home');
+>(() => {
+    const path = window.location.pathname;
+    if (parseArticleSlug(path)) return 'article-detail';
+    if (path === ARTICLE_BASE_PATH || path === ARTICLE_BASE_PATH + '/') return 'articles';
+    return 'home';
+  });
 
   const navigateAppPath = (path: string, replace = false) => {
     if (replace) window.history.replaceState({}, '', path);
@@ -147,6 +156,68 @@ export const App: React.FC = () => {
   // Products and Articles real-time sync states
   const [products, setProducts] = useState<Product[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
+
+  // Halaman publik hanya boleh menampilkan artikel PUBLISHED
+  const publicArticles = useMemo(
+    () => articles.filter((a) => (a.status || 'PUBLISHED') === 'PUBLISHED'),
+    [articles]
+  );
+
+  // Artikel yang sedang dibuka, dicari berdasarkan slug di URL
+  const slugArticle = useMemo(() => {
+    if (!articleSlug) return null;
+    const pool = publicArticles.length > 0 ? publicArticles : Object.values(ARTICLES_DATA);
+    return pool.find((a) => (a.slug || slugify(a.title)) === articleSlug) || null;
+  }, [articleSlug, publicArticles]);
+
+  useEffect(() => {
+    if (slugArticle) setSelectedArticleKey(slugArticle.id);
+  }, [slugArticle]);
+
+  // Sinkronkan URL <-> tampilan (tombol back/forward browser)
+  useEffect(() => {
+    const syncFromPath = () => {
+      const path = window.location.pathname;
+      const slug = parseArticleSlug(path);
+      if (slug) {
+        setArticleSlug(slug);
+        setCurrentView('article-detail');
+      } else if (path === ARTICLE_BASE_PATH || path === ARTICLE_BASE_PATH + '/') {
+        setCurrentView('articles');
+      } else if (path === '/') {
+        setCurrentView('home');
+      }
+    };
+    window.addEventListener('popstate', syncFromPath);
+    return () => window.removeEventListener('popstate', syncFromPath);
+  }, []);
+
+  // Tulis URL sesuai tampilan aktif
+  useEffect(() => {
+    if (currentView === 'admin') return;
+    let target: string | null = null;
+    if (currentView === 'article-detail') {
+      target = slugArticle ? articlePath(slugArticle.slug || slugify(slugArticle.title)) : null;
+    } else if (currentView === 'articles') {
+      target = ARTICLE_BASE_PATH;
+    } else if (window.location.pathname.startsWith(ARTICLE_BASE_PATH)) {
+      target = '/'; // keluar dari area artikel
+    }
+    if (target && window.location.pathname !== target) {
+      window.history.pushState({}, '', target);
+    }
+  }, [currentView, slugArticle]);
+
+  // Judul tab browser
+  useEffect(() => {
+    if (currentView === 'article-detail' && slugArticle) {
+      document.title = `${slugArticle.title} | BinaUsaha`;
+    } else if (currentView === 'articles') {
+      document.title = 'Artikel & Tips Bisnis UMKM | BinaUsaha';
+    } else {
+      document.title = 'BinaUsaha - Platform Digital UMKM Indonesia';
+    }
+  }, [currentView, slugArticle]);
 
   useEffect(() => {
     const unsubscribe = subscribeToMyOrders(authUid, setOrders);
@@ -243,7 +314,9 @@ export const App: React.FC = () => {
 
   // Article handler - navigate directly to single article page
   const handleOpenArticle = (artKey: string) => {
+    const art = articles.find((a) => a.id === artKey) || ARTICLES_DATA[artKey];
     setSelectedArticleKey(artKey);
+    setArticleSlug(art ? art.slug || slugify(art.title) : null);
     setCurrentView('article-detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -411,10 +484,25 @@ export const App: React.FC = () => {
               setIsInvoiceModalOpen(true);
             }}
           />
+        ) : currentView === 'article-detail' && !slugArticle ? (
+          <div className="min-h-[60vh] flex items-center justify-center p-6">
+            <div className="text-center max-w-md">
+              <h1 className="text-xl font-bold text-slate-800">Artikel tidak ditemukan</h1>
+              <p className="mt-2 text-sm text-slate-500">
+                Artikel mungkin sedang dimuat, sudah dihapus, atau alamatnya berubah.
+              </p>
+              <button
+                className="mt-5 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold cursor-pointer"
+                onClick={() => handleOpenArticlesHub('all')}
+              >
+                Lihat semua artikel
+              </button>
+            </div>
+          </div>
         ) : currentView === 'article-detail' ? (
           <SingleArticlePage
             articleId={selectedArticleKey}
-            articles={articles}
+            articles={publicArticles}
             products={products}
             onBackToArticles={() => {
               handleOpenArticlesHub(articlesCategoryFilter || 'all');
@@ -433,7 +521,7 @@ export const App: React.FC = () => {
           />
         ) : currentView === 'articles' ? (
           <ArticlesHubPage
-            articles={articles}
+            articles={publicArticles}
             onBackToHome={() => {
               setCurrentView('home');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -572,7 +660,7 @@ export const App: React.FC = () => {
 
             {/* 13. Articles & Insights Section */}
             <ArticlesSection
-              articles={articles}
+              articles={publicArticles}
               onOpenArticle={handleOpenArticle}
               onToggleBookmark={toggleBookmark}
               bookmarkedArticles={bookmarkedArticles}

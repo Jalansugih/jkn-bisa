@@ -1,7 +1,9 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
 import { createServer as createViteServer } from 'vite';
 import { getGeminiAI } from './lib/gemini';
 
@@ -23,6 +25,127 @@ function buildMailTransport() {
     secure: Number(SMTP_PORT || 587) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
+}
+
+
+// ---------------------------------------------------------------------
+// Open Graph per artikel (untuk pratinjau link WhatsApp / Facebook / X).
+// Aplikasi tetap SPA; server hanya menyuntikkan meta tag ke index.html
+// untuk URL /artikel/<slug>. Crawler tidak menjalankan JavaScript, jadi
+// tag ini harus sudah ada di HTML yang dikirim server.
+// ---------------------------------------------------------------------
+const SITE_NAME = 'BinaUsaha';
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function stripHtml(value: string): string {
+  return value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function truncate(value: string, max: number): string {
+  return value.length <= max ? value : value.slice(0, max - 1).trimEnd() + '…';
+}
+
+interface OgArticle {
+  title: string;
+  description: string;
+  image: string | null;
+}
+
+const ogCache = new Map<string, { at: number; data: OgArticle | null }>();
+const OG_CACHE_MS = 60_000;
+
+async function fetchArticleForOg(slug: string): Promise<OgArticle | null> {
+  const hit = ogCache.get(slug);
+  if (hit && Date.now() - hit.at < OG_CACHE_MS) return hit.data;
+
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+
+  let data: OgArticle | null = null;
+  try {
+    const supabase = createClient(url, key, { auth: { persistSession: false } });
+    // Hanya artikel PUBLISHED: kebijakan RLS `articles_select` saat ini
+    // mengizinkan baca semua baris, jadi filter status wajib di sini.
+    const { data: row } = await supabase
+      .from('articles')
+      .select('title, excerpt, content_html, image')
+      .ilike('slug', slug)
+      .eq('status', 'PUBLISHED')
+      .maybeSingle();
+    if (row) {
+      const desc = (row.excerpt && String(row.excerpt).trim()) || stripHtml(String(row.content_html || ''));
+      data = {
+        title: String(row.title || SITE_NAME),
+        description: truncate(desc, 200),
+        image: row.image ? String(row.image) : null,
+      };
+    }
+  } catch (err) {
+    console.warn('[og] Gagal mengambil artikel untuk OG:', err);
+  }
+  ogCache.set(slug, { at: Date.now(), data });
+  return data;
+}
+
+function originOf(req: Request): string {
+  if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, '');
+  const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol;
+  return `${proto}://${req.get('host')}`;
+}
+
+function injectArticleMeta(html: string, article: OgArticle, pageUrl: string, origin: string): string {
+  const title = `${article.title} | ${SITE_NAME}`;
+  const image = article.image
+    ? article.image.startsWith('/') ? origin + article.image : article.image
+    : null;
+
+  const tags = [
+    `<link rel="canonical" href="${escapeHtml(pageUrl)}" />`,
+    `<meta property="og:type" content="article" />`,
+    `<meta property="og:site_name" content="${SITE_NAME}" />`,
+    `<meta property="og:title" content="${escapeHtml(article.title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(article.description)}" />`,
+    `<meta property="og:url" content="${escapeHtml(pageUrl)}" />`,
+    image ? `<meta property="og:image" content="${escapeHtml(image)}" />` : '',
+    `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}" />`,
+    `<meta name="twitter:title" content="${escapeHtml(article.title)}" />`,
+    `<meta name="twitter:description" content="${escapeHtml(article.description)}" />`,
+    image ? `<meta name="twitter:image" content="${escapeHtml(image)}" />` : '',
+  ].filter(Boolean).join('\n    ');
+
+  return html
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
+    .replace(
+      /<meta\s+name="description"[^>]*>/i,
+      `<meta name="description" content="${escapeHtml(article.description)}" />`
+    )
+    .replace('</head>', `    ${tags}\n  </head>`);
+}
+
+/** Handler /artikel/:slug — kirim index.html dengan meta OG artikel (jika ada). */
+function articleOgHandler(getTemplate: (req: Request) => Promise<string>) {
+  return async (req: Request, res: Response) => {
+    try {
+      const template = await getTemplate(req);
+      const slug = decodeURIComponent(req.params.slug || '');
+      const article = slug ? await fetchArticleForOg(slug) : null;
+      const html = article
+        ? injectArticleMeta(template, article, `${originOf(req)}${req.path}`, originOf(req))
+        : template;
+      res.status(200).set('Content-Type', 'text/html; charset=utf-8').send(html);
+    } catch (err) {
+      console.error('[og] Error, fallback ke index.html biasa:', err);
+      res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+    }
+  };
 }
 
 async function startServer() {
@@ -195,9 +318,24 @@ Data RFQ:
       server: { middlewareMode: true },
       appType: 'spa',
     });
+    // Artikel: suntik meta OG (dev) sebelum middleware Vite.
+    app.get(
+      '/artikel/:slug',
+      articleOgHandler(async (req) =>
+        vite.transformIndexHtml(
+          req.originalUrl,
+          fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8')
+        )
+      )
+    );
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    const indexHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+
+    // Artikel: suntik meta OG (produksi) sebelum fallback SPA.
+    app.get('/artikel/:slug', articleOgHandler(async () => indexHtml));
+
     app.use(express.static(distPath));
     app.get('*', (req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));

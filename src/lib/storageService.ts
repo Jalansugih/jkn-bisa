@@ -14,7 +14,7 @@ export async function uploadFile(
   bucket: StorageBucket,
   path: string,
   file: File | Blob,
-  options?: { upsert?: boolean; contentType?: string }
+  options?: { upsert?: boolean; contentType?: string; cacheControl?: string }
 ): Promise<UploadResult> {
   if (!isSupabaseConfigured) {
     console.warn('[Supabase Storage] Supabase not configured. Using placeholder URL.');
@@ -27,6 +27,7 @@ export async function uploadFile(
   const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
     upsert: options?.upsert ?? true,
     contentType: options?.contentType,
+    cacheControl: options?.cacheControl,
   });
 
   if (error) {

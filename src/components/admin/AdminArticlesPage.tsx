@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Article } from '../../types';
 import { addArticle, updateArticle, deleteArticle } from '../../lib/articleService';
+import { slugify } from '../../lib/slug';
+import { uploadArticleImage, hasInlineBase64Image } from '../../lib/imageUpload';
 import {
   Search,
   Filter,
@@ -20,6 +22,8 @@ import {
   X,
   Sparkles,
   Image as ImageIcon,
+  Upload,
+  ImagePlus,
   Check,
 } from 'lucide-react';
 
@@ -75,6 +79,12 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
   const [formTagsString, setFormTagsString] = useState('');
   const [formSlug, setFormSlug] = useState('');
   const [formStatus, setFormStatus] = useState<Article['status']>('DRAFT');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isUploadingInline, setIsUploadingInline] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const inlineInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
 
   // Filtered list
   const filteredArticles = articles.filter((art) => {
@@ -95,6 +105,7 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
     setFormId(newId);
     setFormTitle('');
     setFormSlug('');
+    setSlugTouched(false);
     setFormStatus('DRAFT');
     setFormCategory('legalitas');
     setFormCategoryLabel(CATEGORY_MAP.legalitas);
@@ -115,6 +126,7 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
     setFormId(article.id);
     setFormTitle(article.title);
     setFormSlug(article.slug || '');
+    setSlugTouched(true); // artikel lama: slug tidak ikut berubah saat judul diedit
     setFormStatus(article.status || 'PUBLISHED');
     setFormCategory(article.category);
     setFormCategoryLabel(article.categoryLabel || CATEGORY_MAP[article.category] || 'Informasi');
@@ -128,6 +140,48 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
     setFormFeatured(Boolean(article.featured));
     setFormTagsString(article.tags ? article.tags.join(', ') : '');
     setIsModalOpen(true);
+  };
+
+
+  const handleTitleChange = (value: string) => {
+    setFormTitle(value);
+    if (!isEditMode && !slugTouched) setFormSlug(slugify(value));
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsUploadingCover(true);
+    try {
+      const url = await uploadArticleImage(file, { kind: 'cover' });
+      setFormImage(url);
+      showToast('Gambar cover berhasil diunggah.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal mengunggah gambar.', 'error');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  const handleInlineImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsUploadingInline(true);
+    try {
+      const url = await uploadArticleImage(file, { kind: 'content' });
+      const alt = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+      const tag = `\n<img src="${url}" alt="${alt}" loading="lazy" decoding="async" class="w-full h-auto rounded-xl my-4" />\n`;
+      const el = contentRef.current;
+      const pos = el ? el.selectionStart : formContentHtml.length;
+      setFormContentHtml((prev) => prev.slice(0, pos) + tag + prev.slice(pos));
+      showToast('Gambar diunggah & disisipkan ke konten.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal mengunggah gambar.', 'error');
+    } finally {
+      setIsUploadingInline(false);
+    }
   };
 
   const handleCategoryChange = (cat: Article['category']) => {
@@ -147,6 +201,11 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
     }
     if (!formContentHtml.trim()) {
       showToast('Konten artikel wajib diisi!', 'warning');
+      return;
+    }
+
+    if (hasInlineBase64Image(formContentHtml) || formImage.trim().startsWith('data:')) {
+      showToast('Gambar base64 tidak diizinkan. Unggah gambar lewat tombol "Unggah" agar disimpan sebagai URL.', 'warning');
       return;
     }
 
@@ -402,7 +461,7 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
                   type="text"
                   required
                   value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
+                  onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="Contoh: Panduan Lengkap Mengurus NIB OSS RBA untuk UMKM di 2026"
                   className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
                 />
@@ -411,7 +470,18 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">Slug</label>
-                  <input type="text" value={formSlug} onChange={(e) => setFormSlug(e.target.value)} placeholder="panduan-nib-umkm" className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800" />
+                  <input
+                    type="text"
+                    value={formSlug}
+                    onChange={(e) => { setSlugTouched(true); setFormSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')); }}
+                    onBlur={() => setFormSlug((v) => slugify(v))}
+                    placeholder="panduan-nib-umkm"
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400 break-all">
+                    URL: /artikel/{formSlug || 'slug-artikel'}
+                    {isEditMode && ' — mengubah slug artikel yang sudah terbit akan memutus link lama.'}
+                  </p>
                 </div>
                 <div>
                   <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">Status Publikasi</label>
@@ -468,16 +538,31 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
               {/* Cover Image URL & Presets */}
               <div>
                 <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Gambar Cover (URL Unsplash / Gambar Bisnis)
+                  Gambar Cover (unggah atau tempel URL)
                 </label>
-                <input
-                  type="url"
-                  required
-                  value={formImage}
-                  onChange={(e) => setFormImage(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 mb-2"
-                />
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    required
+                    value={formImage}
+                    onChange={(e) => setFormImage(e.target.value)}
+                    placeholder="https://... (URL gambar)"
+                    className="flex-1 min-w-0 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input ref={coverInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCoverUpload} />
+                  <button
+                    type="button"
+                    disabled={isUploadingCover}
+                    onClick={() => coverInputRef.current?.click()}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
+                  >
+                    {isUploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    Unggah
+                  </button>
+                </div>
+                {formImage && (
+                  <img src={formImage} alt="Pratinjau cover" loading="lazy" className="w-full max-h-40 object-cover rounded-xl border border-slate-200 mb-2" />
+                )}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[11px] text-slate-400">Pilihan Cepat:</span>
                   {PRESET_IMAGES.map((preset, idx) => (
@@ -518,11 +603,24 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
                   <label className="block font-bold uppercase tracking-wider text-slate-700">
                     Konten Lengkap (HTML / Teks) <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-[10px] text-slate-400">
-                    Mendukung tag HTML &lt;p&gt;, &lt;h4&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;b&gt;
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline text-[10px] text-slate-400">
+                      Mendukung tag HTML &lt;p&gt;, &lt;h4&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;b&gt;, &lt;img&gt;
+                    </span>
+                    <input ref={inlineInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleInlineImageUpload} />
+                    <button
+                      type="button"
+                      disabled={isUploadingInline}
+                      onClick={() => inlineInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-white text-[11px] font-semibold hover:bg-slate-900 disabled:opacity-60 cursor-pointer"
+                    >
+                      {isUploadingInline ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+                      Sisipkan Gambar
+                    </button>
+                  </div>
                 </div>
                 <textarea
+                  ref={contentRef}
                   rows={8}
                   required
                   value={formContentHtml}
