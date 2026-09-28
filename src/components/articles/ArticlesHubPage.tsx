@@ -1,4 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { ShareMenu } from './ShareMenu';
+import { createdMillis } from '../../lib/articleService';
+import { slugify } from '../../lib/slug';
 import { Article } from '../../types';
 import { ARTICLES_DATA } from '../../data/mockData';
 import {
@@ -124,9 +127,7 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
           const timeB = parseInt(b.readTime) || 5;
           return timeA - timeB;
         }
-        const av = a.createdAt && typeof (a.createdAt as any).toMillis === 'function' ? (a.createdAt as any).toMillis() : 0;
-        const bv = b.createdAt && typeof (b.createdAt as any).toMillis === 'function' ? (b.createdAt as any).toMillis() : 0;
-        return bv - av;
+        return createdMillis(b) - createdMillis(a);
       });
   }, [allArticles, selectedCategory, searchQuery, sortBy, bookmarkedArticles]);
 
@@ -139,12 +140,6 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
     }
     setIsSubscribed(true);
     showToast('Terima kasih! Anda berhasil berlangganan Buletin Edukasi Bisnis.', 'success');
-  };
-
-  const handleShareArticle = (e: React.MouseEvent, art: Article) => {
-    e.stopPropagation();
-    const text = `Baca artikel bermanfaat dari BinaUsaha: "${art.title}"`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const popularTags = [
@@ -247,7 +242,7 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1 font-medium">
-                      <Eye className="w-3.5 h-3.5 text-slate-400" /> {featuredArticle.views?.toLocaleString()} Pembaca
+                      <Eye className="w-3.5 h-3.5 text-slate-400" /> {(featuredArticle.views ?? 0).toLocaleString('id-ID')} Pembaca
                     </span>
                   </div>
 
@@ -541,13 +536,12 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
                       {article.categoryLabel}
                     </span>
                     <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => handleShareArticle(e, article)}
-                        className="p-2 rounded-full bg-white/90 hover:bg-white text-slate-600 hover:text-blue-600 transition shadow-xs cursor-pointer border border-slate-200"
-                        title="Bagikan Artikel"
-                      >
-                        <Share2 className="w-3.5 h-3.5" />
-                      </button>
+                      <ShareMenu
+                        variant="icon"
+                        title={article.title}
+                        slug={article.slug || slugify(article.title)}
+                        showToast={showToast}
+                      />
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -578,11 +572,9 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
                             <Clock className="w-3 h-3 text-blue-600" /> {article.readTime}
                           </span>
                         </div>
-                        {article.views && (
-                          <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <Eye className="w-3 h-3" /> {article.views.toLocaleString()}
-                          </span>
-                        )}
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Eye className="w-3 h-3" /> {(article.views ?? 0).toLocaleString('id-ID')}
+                        </span>
                       </div>
 
                       <h3 className="font-heading font-bold text-base sm:text-lg text-slate-900 mb-2 group-hover:text-blue-600 transition-colors leading-snug">

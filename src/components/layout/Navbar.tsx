@@ -138,17 +138,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-blue-500/20 bg-white border border-slate-200">
     <img
       src="/logo-rk-bendahara.png"
-      alt="BinaUsaha.id logo"
+      alt="BinaUsaha logo"
       className="w-full h-full object-contain"
     />
   </div>
 
   <div>
     <span className="text-xl font-bold tracking-tight text-slate-900">
-      BinaUsaha<span className="text-blue-600">.id</span>
+      Bina<span className="text-blue-600">Usaha</span>
     </span>
     <span className="text-[10px] block text-slate-500 -mt-1 font-semibold tracking-wider uppercase">
-      Solusi Usaha Anda
+      Bersama Bangun Usaha
     </span>
   </div>
     </div>

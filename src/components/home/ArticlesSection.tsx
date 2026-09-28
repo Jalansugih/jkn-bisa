@@ -1,7 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Article } from '../../types';
 import { ARTICLES_DATA } from '../../data/mockData';
-import { Search, Heart, Calendar, Clock, ArrowRight } from 'lucide-react';
+import { createdMillis } from '../../lib/articleService';
+import { Heart, Calendar, Clock, Eye, ArrowRight } from 'lucide-react';
+
+/** Halaman utama hanya menampilkan sekian artikel; sisanya ada di menu Artikel. */
+const HOME_ARTICLE_LIMIT = 6;
 
 interface ArticlesSectionProps {
   articles?: Article[];
@@ -18,55 +22,18 @@ export const ArticlesSection: React.FC<ArticlesSectionProps> = ({
   bookmarkedArticles,
   onViewAllArticles,
 }) => {
-  const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-
+  // Tampilkan maksimal 6 artikel: artikel pilihan dulu, lalu yang terbaru.
   const articlesList = useMemo(() => {
     const source = propArticles && propArticles.length > 0 ? propArticles : Object.values(ARTICLES_DATA);
-    return source.filter((a) => (a.status || 'PUBLISHED') === 'PUBLISHED').sort((a, b) => {
-      const av = a.createdAt && typeof (a.createdAt as any).toMillis === 'function' ? (a.createdAt as any).toMillis() : 0;
-      const bv = b.createdAt && typeof (b.createdAt as any).toMillis === 'function' ? (b.createdAt as any).toMillis() : 0;
-      return bv - av;
-    });
+    return source
+      .filter((a) => (a.status || 'PUBLISHED') === 'PUBLISHED')
+      .sort((a, b) => {
+        if (Boolean(b.featured) !== Boolean(a.featured)) return b.featured ? 1 : -1;
+        return createdMillis(b) - createdMillis(a);
+      });
   }, [propArticles]);
 
-  const categoryTabs = useMemo(() => {
-    const defaultCats = [
-      { id: 'all', label: 'Semua Artikel' },
-      { id: 'legalitas', label: 'Legalitas' },
-      { id: 'digital', label: 'Digital & Website' },
-      { id: 'keuangan', label: 'Keuangan' },
-      { id: 'pemasaran', label: 'Pemasaran' },
-      { id: 'operasional', label: 'Tips Usaha & SOP' },
-      { id: 'skala-usaha', label: 'Scale Up' },
-    ];
-
-    const knownIds = new Set(defaultCats.map(c => c.id));
-    const extraCats: { id: string; label: string }[] = [];
-
-    articlesList.forEach(a => {
-      if (a.category && !knownIds.has(a.category)) {
-        knownIds.add(a.category);
-        extraCats.push({
-          id: a.category,
-          label: a.categoryLabel || (a.category.charAt(0).toUpperCase() + a.category.slice(1)),
-        });
-      }
-    });
-
-    return [...defaultCats, ...extraCats];
-  }, [articlesList]);
-
-  const filteredArticles = useMemo(() => {
-    return articlesList.filter((art) => {
-      const matchesCat = activeCategory === 'all' || art.category === activeCategory;
-      const matchesSearch =
-        art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        art.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (art.tags && art.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
-      return matchesCat && matchesSearch;
-    });
-  }, [articlesList, activeCategory, searchQuery]);
+  const homeArticles = useMemo(() => articlesList.slice(0, HOME_ARTICLE_LIMIT), [articlesList]);
 
   return (
     <section className="py-20 bg-slate-50/60 border-t border-slate-200" id="artikel">
@@ -83,52 +50,18 @@ export const ArticlesSection: React.FC<ArticlesSectionProps> = ({
               Pelajari panduan praktis legalitas, digitalisasi, strategi pemasaran, dan manajemen arus kas.
             </p>
           </div>
-
-          {/* Live Search Box */}
-          <div className="relative w-full md:w-80">
-            <input
-              type="text"
-              id="articleSearchInput"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-xs"
-              placeholder="Cari artikel (contoh: NIB, website, keuangan)..."
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-          </div>
-        </div>
-
-        {/* Filter Categories */}
-        <div className="flex flex-wrap items-center gap-2 mb-8">
-          {categoryTabs.map((cat) => {
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                id={`art-filter-${cat.id}`}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`art-filter-btn px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-blue-50 hover:text-blue-600'
-                }`}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
         </div>
 
         {/* Article Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="articleCardsGrid">
-          {filteredArticles.map((article) => {
+          {homeArticles.map((article, index) => {
             const isBookmarked = bookmarkedArticles.includes(article.id);
 
             return (
               <article
                 key={article.id}
                 onClick={() => onOpenArticle(article.id)}
-                className="article-item bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-blue-300 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 flex flex-col group cursor-pointer"
+                className={`article-item bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-blue-300 hover:shadow-xl hover:shadow-blue-900/5 transition-all duration-300 flex-col group cursor-pointer ${index >= 3 ? 'hidden md:flex' : 'flex'}`}
               >
                 <div className="relative h-48 bg-slate-100 overflow-hidden">
                   <img
@@ -164,6 +97,10 @@ export const ArticlesSection: React.FC<ArticlesSectionProps> = ({
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {article.readTime}
                       </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" /> {(article.views ?? 0).toLocaleString('id-ID')}
+                      </span>
                     </div>
                     <h3 className="font-heading font-bold text-lg text-slate-900 mb-2 group-hover:text-blue-600 transition-colors leading-snug">
                       {article.title}
@@ -195,16 +132,14 @@ export const ArticlesSection: React.FC<ArticlesSectionProps> = ({
 
         <div className="text-center mt-12">
           <button
-            onClick={() => {
-              if (onViewAllArticles) {
-                onViewAllArticles();
-              } else {
-                setActiveCategory('all');
-              }
-            }}
+            onClick={() => onViewAllArticles?.()}
             className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/20 hover:shadow-lg transition cursor-pointer"
           >
-            <span>Lihat Semua Artikel Edukasi ({articlesList.length})</span>
+            <span>
+              {articlesList.length > homeArticles.length
+                ? `Lihat Semua Artikel (${articlesList.length})`
+                : 'Buka Halaman Artikel'}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

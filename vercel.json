@@ -3,6 +3,6 @@
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/(.*)", "destination": "/index.html" },
     { "source": "/artikel", "destination": "/index.html" },
-    { "source": "/artikel/(.*)", "destination": "/index.html" }
+    { "source": "/artikel/:slug", "destination": "/api/artikel?slug=:slug" }
   ]
 }

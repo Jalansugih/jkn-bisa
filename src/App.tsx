@@ -312,6 +312,11 @@ export const App: React.FC = () => {
     window.open(`https://wa.me/6285195979888?text=${encodeURIComponent(text)}`, '_blank');
   };
 
+  // Server sudah mencatat pembaca baru → perbarui angka di layar tanpa menunggu refetch
+  const handleViewCounted = (articleId: string, views: number) => {
+    setArticles((prev) => prev.map((a) => (a.id === articleId ? { ...a, views } : a)));
+  };
+
   // Article handler - navigate directly to single article page
   const handleOpenArticle = (artKey: string) => {
     const art = articles.find((a) => a.id === artKey) || ARTICLES_DATA[artKey];
@@ -518,6 +523,7 @@ export const App: React.FC = () => {
             onOpenConsultation={() => setIsConsultModalOpen(true)}
             onAskWhatsapp={handleAskWhatsapp}
             showToast={showToast}
+            onViewCounted={handleViewCounted}
           />
         ) : currentView === 'articles' ? (
           <ArticlesHubPage

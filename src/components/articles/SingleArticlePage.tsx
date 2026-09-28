@@ -1,6 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Article, Product } from '../../types';
 import { ARTICLES_DATA, PRODUCTS_DATA } from '../../data/mockData';
+import { ShareMenu } from './ShareMenu';
+import { trackArticleView } from '../../lib/articleService';
+import { slugify } from '../../lib/slug';
+import { copyText, articleShareUrl } from '../../lib/share';
 import {
   ArrowLeft,
   Calendar,
@@ -39,6 +43,8 @@ interface SingleArticlePageProps {
   onOpenConsultation: () => void;
   onAskWhatsapp: (topic: string) => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  /** Dipanggil setelah server mencatat pembaca baru, supaya angka di layar ikut naik. */
+  onViewCounted?: (articleId: string, views: number) => void;
 }
 
 export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
@@ -54,6 +60,7 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
   onOpenConsultation,
   onAskWhatsapp,
   showToast,
+  onViewCounted,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [feedbackGiven, setFeedbackGiven] = useState<'yes' | 'no' | null>(null);
@@ -78,6 +85,16 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setFeedbackGiven(null);
   }, [articleId]);
+
+  // Catat pembaca (1 pengunjung = 1x per hari, dijaga di server)
+  useEffect(() => {
+    let cancelled = false;
+    trackArticleView(article.id).then((views) => {
+      if (!cancelled && views !== null) onViewCounted?.(article.id, views);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article.id]);
 
   const isBookmarked = bookmarkedArticles.includes(article.id);
 
@@ -118,18 +135,17 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
   }, [propProducts, recommendedProductKey, article.category]);
 
   // Handlers
-  const handleCopyLink = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      showToast('Tautan artikel berhasil disalin ke clipboard!', 'success');
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  const articleSlugValue = article.slug || slugify(article.title);
 
-  const handleShareWhatsapp = () => {
-    const text = `Halo, saya baru saja membaca artikel bermanfaat dari BinaUsaha: "${article.title}"\n\nPelajari selengkapnya di portal BinaUsaha.`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  const handleCopyLink = async () => {
+    const ok = await copyText(articleShareUrl(articleSlugValue));
+    if (ok) {
+      setCopied(true);
+      showToast('Tautan artikel berhasil disalin!', 'success');
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      showToast('Gagal menyalin tautan. Salin manual dari address bar.', 'error');
+    }
   };
 
   const handleNewsletterSubmit = (e: React.FormEvent) => {
@@ -232,14 +248,11 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
                     <span className="hidden sm:inline">{isBookmarked ? 'Tersimpan' : 'Simpan'}</span>
                   </button>
 
-                  <button
-                    onClick={handleShareWhatsapp}
-                    className="p-2 sm:px-3 sm:py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                    title="Bagikan ke WhatsApp"
-                  >
-                    <Share2 className="w-4 h-4 text-emerald-600" />
-                    <span className="hidden sm:inline">Bagikan</span>
-                  </button>
+                  <ShareMenu
+                    title={article.title}
+                    slug={articleSlugValue}
+                    showToast={showToast}
+                  />
 
                   <button
                     onClick={handleCopyLink}
@@ -284,15 +297,11 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
                     <Clock className="w-4 h-4 text-blue-600" />
                     <span>{article.readTime}</span>
                   </div>
-                  {article.views && (
-                    <>
-                      <span>•</span>
-                      <div className="flex items-center gap-1.5">
-                        <Eye className="w-4 h-4 text-slate-400" />
-                        <span>{article.views.toLocaleString()} Pembaca</span>
-                      </div>
-                    </>
-                  )}
+                  <span>•</span>
+                  <div className="flex items-center gap-1.5">
+                    <Eye className="w-4 h-4 text-slate-400" />
+                    <span>{(article.views ?? 0).toLocaleString('id-ID')} Pembaca</span>
+                  </div>
                 </div>
               </div>
 

@@ -83,12 +83,80 @@ function saveLocalArticles(articles: Article[]): void {
   catch (err) { console.warn('[saveLocalArticles] Write cache failed:', err); }
 }
 
+/** createdAt → milidetik. Mendukung string ISO (Supabase) maupun objek Timestamp lama. */
+export function createdMillis(a: Pick<Article, 'createdAt'>): number {
+  const c = a.createdAt as unknown;
+  if (!c) return 0;
+  if (typeof c === 'string' || typeof c === 'number') {
+    const t = new Date(c).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  }
+  if (typeof (c as { toMillis?: () => number }).toMillis === 'function') return (c as { toMillis: () => number }).toMillis();
+  return 0;
+}
+
 function sortByCreatedAt(items: Article[]): Article[] {
-  return [...items].sort((a, b) => {
-    const av = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
-    const bv = b.createdAt ? new Date(b.createdAt as string).getTime() : 0;
-    return bv - av;
-  });
+  return [...items].sort((a, b) => createdMillis(b) - createdMillis(a));
+}
+
+// ---------------------------------------------------------------------
+// Penghitung pembaca (views)
+// ---------------------------------------------------------------------
+const VISITOR_KEY = 'bu_visitor_id';
+const viewsInFlight = new Set<string>();
+
+function getVisitorId(): string {
+  try {
+    let id = localStorage.getItem(VISITOR_KEY);
+    if (!id || id.length < 8) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : `v_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+      localStorage.setItem(VISITOR_KEY, id);
+    }
+    return id;
+  } catch {
+    // localStorage diblokir (mode privat ketat): id sementara untuk sesi ini
+    return `tmp_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
+  }
+}
+
+function todayKey(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date()); // YYYY-MM-DD
+}
+
+/**
+ * Catat 1 pembaca untuk artikel. Server yang menjaga agar satu pengunjung
+ * hanya dihitung 1x per artikel per hari (lihat migrasi 2026-09-29_article_views.sql).
+ * Mengembalikan jumlah pembaca terbaru, atau null bila tidak dihitung / gagal.
+ */
+export async function trackArticleView(articleId: string): Promise<number | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  const dedupeKey = `bu_viewed_${articleId}`;
+  try {
+    if (localStorage.getItem(dedupeKey) === todayKey()) return null; // sudah dihitung hari ini di browser ini
+  } catch { /* abaikan */ }
+
+  if (viewsInFlight.has(articleId)) return null; // cegah panggilan ganda (React StrictMode)
+  viewsInFlight.add(articleId);
+
+  try {
+    const { data, error } = await supabase.rpc('increment_article_view', {
+      p_article_id: articleId,
+      p_visitor_id: getVisitorId(),
+    });
+    if (error) {
+      console.warn('[trackArticleView] gagal mencatat pembaca:', error.message);
+      return null;
+    }
+    if (typeof data !== 'number') return null; // artikel bukan dari database / belum PUBLISHED
+    try { localStorage.setItem(dedupeKey, todayKey()); } catch { /* abaikan */ }
+    return data;
+  } catch (err) {
+    console.warn('[trackArticleView] error:', err);
+    return null;
+  } finally {
+    viewsInFlight.delete(articleId);
+  }
 }
 
 
@@ -140,12 +208,21 @@ export function subscribeToArticles(callback: (articles: Article[]) => void): ()
 
   fetchAndEmit();
 
+  // Debounce: setiap pembaca baru memicu event UPDATE (kolom views) untuk semua
+  // klien; tanpa jeda, semua klien akan langsung mengunduh ulang seluruh artikel.
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleFetch = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fetchAndEmit, 2000);
+  };
+
   const channel = supabase
     .channel('articles-list')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'articles' }, () => fetchAndEmit())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'articles' }, scheduleFetch)
     .subscribe();
 
   return () => {
+    if (timer) clearTimeout(timer);
     supabase.removeChannel(channel);
   };
 }
