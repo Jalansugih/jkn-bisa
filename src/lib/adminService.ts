@@ -55,6 +55,7 @@ export async function updateOrderStatus(
     notes?: string;
     trackingNumber?: string;
     documentLink?: string;
+    paymentStatus?: OrderItem['paymentStatus'];
   }
 ): Promise<void> {
   if (!isSupabaseConfigured || !supabase) {
@@ -65,6 +66,7 @@ export async function updateOrderStatus(
   if (payload.notes !== undefined) updates.notes = payload.notes;
   if (payload.trackingNumber !== undefined) updates.tracking_number = payload.trackingNumber;
   if (payload.documentLink !== undefined) updates.document_link = payload.documentLink;
+  if (payload.paymentStatus !== undefined) updates.payment_status = payload.paymentStatus;
 
   const { error } = await supabase.from('orders').update(updates).eq('id', orderId);
 

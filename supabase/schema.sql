@@ -114,7 +114,7 @@ create table if not exists public.orders (
   product_price     numeric,
   brand             text not null,
   name              text not null,
-  wa                text not null,
+  whatsapp          text not null,
   email             text,
   total             text not null,
   order_date        text,
@@ -124,6 +124,9 @@ create table if not exists public.orders (
   notes             text,
   tracking_number   text,
   document_link     text,
+  payment_method    text,
+  payment_status    text not null default 'Belum Dibayar'
+                       check (payment_status in ('Belum Dibayar','Menunggu Verifikasi','Lunas')),
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
@@ -135,7 +138,7 @@ alter table public.orders enable row level security;
 -- dengan user yang sedang login.
 drop policy if exists "orders_insert" on public.orders;
 create policy "orders_insert" on public.orders
-  for insert with check (
+  for insert to anon, authenticated with check (
     uid is null or (auth.uid() is not null and uid = auth.uid())
   );
 
@@ -162,7 +165,10 @@ returns table (
   brand text,
   status text,
   notes text,
-  order_date text
+  order_date text,
+  payment_method text,
+  payment_status text,
+  total text
 )
 language plpgsql
 security definer
@@ -181,11 +187,12 @@ begin
   end if;
 
   return query
-    select o.id, o.product, o.brand, o.status, o.notes, o.order_date
+    select o.id, o.product, o.brand, o.status, o.notes, o.order_date,
+           o.payment_method, o.payment_status, o.total
     from public.orders o
     where o.id = normalized_id
        or o.id = upper(trim(search_term))
-       or o.wa = trim(search_term)
+       or o.whatsapp = trim(search_term)
     limit 1;
 end;
 $$;

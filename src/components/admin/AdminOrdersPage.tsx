@@ -43,6 +43,7 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
 
   // Edit form states
   const [editStatus, setEditStatus] = useState<OrderItem['status']>('Verifikasi');
+  const [editPaymentStatus, setEditPaymentStatus] = useState<NonNullable<OrderItem['paymentStatus']>>('Belum Dibayar');
   const [editNotes, setEditNotes] = useState('');
   const [editTrackingNumber, setEditTrackingNumber] = useState('');
   const [editDocumentLink, setEditDocumentLink] = useState('');
@@ -66,6 +67,7 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
   const handleOpenEdit = (order: OrderItem) => {
     setSelectedOrder(order);
     setEditStatus(order.status);
+    setEditPaymentStatus(order.paymentStatus || 'Belum Dibayar');
     setEditNotes(order.notes || '');
     setEditTrackingNumber(order.trackingNumber || '');
     setEditDocumentLink(order.documentLink || '');
@@ -91,6 +93,7 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
     try {
       await updateOrderStatus(selectedOrder.id, {
         status: editStatus,
+        paymentStatus: editPaymentStatus,
         notes: editNotes,
         trackingNumber: editTrackingNumber,
         documentLink: editDocumentLink,
@@ -314,6 +317,9 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                 <div className="text-slate-600 font-semibold text-blue-700">
                   Nilai: {selectedOrder.total}
                 </div>
+                <div className="text-slate-600">
+                  Metode bayar: <strong>{selectedOrder.paymentMethod ? selectedOrder.paymentMethod.toUpperCase() : '-'}</strong>
+                </div>
               </div>
 
               {/* Status Selector */}
@@ -335,6 +341,29 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                     >
                       <span>{st}</span>
                       {editStatus === st && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Status */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Status Pembayaran
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Belum Dibayar', 'Menunggu Verifikasi', 'Lunas'] as const).map((ps) => (
+                    <button
+                      type="button"
+                      key={ps}
+                      onClick={() => setEditPaymentStatus(ps)}
+                      className={`p-2 rounded-xl border text-[11px] font-bold transition cursor-pointer ${
+                        editPaymentStatus === ps
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {ps}
                     </button>
                   ))}
                 </div>

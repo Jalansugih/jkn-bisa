@@ -65,6 +65,8 @@ export interface OrderItem {
   notes?: string;
   trackingNumber?: string;
   documentLink?: string;
+  paymentMethod?: string;
+  paymentStatus?: 'Belum Dibayar' | 'Menunggu Verifikasi' | 'Lunas';
 }
 
 export interface ToastMessage {

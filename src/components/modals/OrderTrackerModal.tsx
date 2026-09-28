@@ -106,9 +106,14 @@ export const OrderTrackerModal: React.FC<OrderTrackerModalProps> = ({ isOpen, on
                   <span className="font-bold text-slate-900 block">{searchedOrder.brand}</span>
                   <span className="text-[11px] text-slate-500">{searchedOrder.id} • {searchedOrder.product}</span>
                 </div>
-                <span className="bg-blue-50 border border-blue-200 text-blue-700 font-bold px-2.5 py-1 rounded-full text-[10px] self-start shadow-xs">
-                  {searchedOrder.status}
-                </span>
+                <div className="flex flex-col items-end gap-1 self-start">
+                  <span className="bg-blue-50 border border-blue-200 text-blue-700 font-bold px-2.5 py-1 rounded-full text-[10px] shadow-xs">
+                    {searchedOrder.status}
+                  </span>
+                  <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold px-2.5 py-1 rounded-full text-[10px] shadow-xs">
+                    {searchedOrder.paymentStatus || 'Belum Dibayar'}
+                  </span>
+                </div>
               </div>
 
               {/* Stepper progress, driven by the real order status */}

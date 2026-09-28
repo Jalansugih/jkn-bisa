@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { OrderItem } from '../../types';
-import { CheckCircle, CreditCard, MessageCircle, Copy } from 'lucide-react';
+import { CheckCircle, CreditCard, MessageCircle, Copy, X, Download } from 'lucide-react';
+import { getPaymentMethod } from '../../data/paymentMethods';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -15,10 +16,20 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   order,
   onCopyBca,
 }) => {
+  const [qrisOpen, setQrisOpen] = useState(false);
+  const [qrisError, setQrisError] = useState(false);
+
   if (!isOpen || !order) return null;
 
+  const method = getPaymentMethod(order.paymentMethod) || getPaymentMethod('bca')!;
+  const copyAccount = () => {
+    if (!method.accountNumber) return;
+    navigator.clipboard?.writeText(method.accountNumber).catch(() => {});
+    onCopyBca();
+  };
+
   const handleWhatsappConfirm = () => {
-    const text = `Halo BinaUsaha, saya sudah melakukan order *${order.id}* untuk *${order.brand}* seharga ${order.total}. Mohon bantu verifikasi pembayaran.`;
+    const text = `Halo BinaUsaha, saya sudah melakukan order *${order.id}* untuk *${order.brand}* seharga ${order.total} via *${method.label}*. Mohon bantu verifikasi pembayaran.`;
     window.open(`https://wa.me/6285195979888?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -68,27 +79,54 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             </div>
           </div>
 
-          {/* Bank / QRIS Transfer Info */}
+          {/* Info Pembayaran sesuai metode yang dipilih */}
           <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
             <h5 className="font-heading font-bold text-xs text-slate-900 flex items-center gap-1.5">
-              <CreditCard className="w-4 h-4 text-blue-600" /> Rekening Pembayaran Resmi BinaUsaha:
+              <CreditCard className="w-4 h-4 text-blue-600" /> Pembayaran via {method.label}
             </h5>
-            <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
-              <div>
-                <p className="font-bold text-slate-900">Bank BCA</p>
-                <p className="text-xs font-mono text-slate-600 font-medium">4020322841</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-500">a.n. PT Bina Usaha Digital</span>
+            <p className="text-[11px] text-slate-500">{method.hint}</p>
+
+            {method.group === 'QRIS' && !qrisError && (
+              <button
+                type="button"
+                onClick={() => setQrisOpen(true)}
+                className="block mx-auto cursor-zoom-in"
+                title="Klik untuk memperbesar"
+              >
+                <img
+                  src={method.qrisImageUrl}
+                  alt="QRIS BinaUsaha"
+                  onError={() => setQrisError(true)}
+                  className="w-48 h-48 object-contain bg-white rounded-xl border border-slate-200 p-2"
+                />
+                <span className="block text-[10px] text-blue-600 font-bold mt-1 text-center">Klik untuk perbesar</span>
+              </button>
+            )}
+
+            {method.accountNumber ? (
+              <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                <div>
+                  <p className="font-bold text-slate-900">{method.label}</p>
+                  <p className="text-xs font-mono text-slate-600 font-medium">{method.accountNumber}</p>
+                  <p className="text-[10px] text-slate-500">a.n. {method.accountName}</p>
+                </div>
                 <button
-                  onClick={onCopyBca}
+                  onClick={copyAccount}
                   className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer transition border border-slate-200"
-                  title="Salin Nomor Rekening"
+                  title="Salin Nomor"
                 >
                   <Copy className="w-3.5 h-3.5" />
                 </button>
               </div>
-            </div>
+            ) : method.group !== 'QRIS' || qrisError ? (
+              <p className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-2.5 font-semibold">
+                Detail {method.label} akan dikirim admin. Klik "Konfirmasi WA" untuk meminta.
+              </p>
+            ) : null}
+
+            <p className="text-[11px] text-slate-600">
+              Status pembayaran: <b>{order.paymentStatus || 'Belum Dibayar'}</b>
+            </p>
           </div>
 
           <p className="text-[11px] text-slate-500 text-center">
@@ -112,6 +150,37 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           </button>
         </div>
       </div>
+      {qrisOpen && method.group === 'QRIS' && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center p-4 bg-slate-950/80"
+          onClick={() => setQrisOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-5 max-w-sm w-full text-center space-y-3 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setQrisOpen(false)}
+              className="absolute top-3 right-3 p-1.5 rounded-full text-slate-400 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h4 className="font-heading font-bold text-sm text-slate-900">Scan QRIS untuk Membayar</h4>
+            <img src={method.qrisImageUrl} alt="QRIS" className="w-full max-h-[60vh] object-contain" />
+            <p className="text-xs text-slate-600">
+              Nominal: <b className="text-blue-600">{order.total}</b>
+              <br />Kode order: <b>{order.id}</b>
+            </p>
+            <a
+              href={method.qrisImageUrl}
+              download="qris-binausaha.png"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
+            >
+              <Download className="w-3.5 h-3.5" /> Simpan gambar QRIS
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

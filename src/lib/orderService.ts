@@ -3,26 +3,15 @@ import { OrderItem } from '../types';
 
 export class OrderTimeoutError extends Error {
   constructor() {
-    super(
-      'Koneksi ke Supabase terputus atau lambat. Silakan periksa jaringan internet Anda dan coba lagi.'
-    );
+    super('Koneksi ke Supabase terputus atau lambat. Silakan periksa jaringan internet Anda dan coba lagi.');
     this.name = 'OrderTimeoutError';
   }
 }
 
-/**
- * Generate standard unique BinaUsaha Order ID format: BU-XXXXXXXXX
- */
 export function generateOrderId(): string {
   return 'BU-' + Math.floor(100000000 + Math.random() * 900000000);
 }
 
-/**
- * Baris tabel `orders` di Supabase (snake_case, sesuai supabase/schema.sql).
- * Diekspor supaya adminService.ts memakai tipe & mapping yang SAMA persis
- * (dulu ada duplikat interface + fungsi mapping di adminService.ts yang
- * gampang tidak sinkron kalau kolom database berubah).
- */
 export interface OrderRow {
   id: string;
   uid: string | null;
@@ -31,7 +20,7 @@ export interface OrderRow {
   product_price: number | null;
   brand: string;
   name: string;
-  wa: string;
+  whatsapp: string;
   email: string | null;
   total: string;
   order_date: string | null;
@@ -40,6 +29,8 @@ export interface OrderRow {
   notes: string | null;
   tracking_number: string | null;
   document_link: string | null;
+  payment_method?: string | null;
+  payment_status?: OrderItem['paymentStatus'] | null;
 }
 
 export function rowToOrderItem(row: OrderRow): OrderItem {
@@ -51,7 +42,7 @@ export function rowToOrderItem(row: OrderRow): OrderItem {
     productPrice: typeof row.product_price === 'number' ? row.product_price : undefined,
     brand: row.brand || '',
     name: row.name || '',
-    wa: row.wa || '',
+    wa: row.whatsapp || '',
     email: row.email || '',
     total: row.total || 'Rp 0',
     date: row.order_date || '',
@@ -60,241 +51,132 @@ export function rowToOrderItem(row: OrderRow): OrderItem {
     notes: row.notes || '',
     trackingNumber: row.tracking_number || '',
     documentLink: row.document_link || '',
+    paymentMethod: row.payment_method || undefined,
+    paymentStatus: row.payment_status || 'Belum Dibayar',
   };
 }
 
-/**
- * Alur createOrder():
- * 1. Validasi data order
- * 2. Buat orderId/orderNumber unik
- * 3. Simpan ke Supabase (table `orders`)
- * 4. Jika berhasil -> return createdOrder
- * 5. Jika gagal -> THROW ERROR (jangan pernah swallow error)
- */
 export async function createOrder(
   order: Omit<OrderItem, 'id' | 'date' | 'status'>,
   uid: string | null
 ): Promise<OrderItem> {
-  // 1. Validasi data pesanan
-  if (!order) {
-    throw new Error('Data pesanan tidak boleh kosong.');
-  }
-  if (!order.name || !order.name.trim()) {
-    throw new Error('Nama pemesan wajib diisi.');
-  }
-  if (!order.wa || !order.wa.trim()) {
-    throw new Error('Nomor WhatsApp wajib diisi.');
-  }
-  if (!order.product || !order.product.trim()) {
-    throw new Error('Paket/layanan yang dipesan wajib dipilih.');
-  }
-  if (!order.total || !order.total.trim()) {
-    throw new Error('Total harga pesanan tidak valid.');
+  if (!order) throw new Error('Data pesanan tidak boleh kosong.');
+  if (!order.name?.trim()) throw new Error('Nama pemesan wajib diisi.');
+  if (!order.wa?.trim()) throw new Error('Nomor WhatsApp wajib diisi.');
+  if (!order.product?.trim()) throw new Error('Paket/layanan yang dipesan wajib dipilih.');
+  if (!order.total?.trim()) throw new Error('Total harga pesanan tidak valid.');
+
+  const orderId = generateOrderId();
+  const today = new Date();
+  const isoDate = today.toISOString().split('T')[0];
+  const displayDate = today.toLocaleDateString('id-ID');
+  // Bersihkan harga dari format "Rp ..." menjadi angka
+  let cleanPrice: number | null = null;
+  if (order.productPrice) {
+    if (typeof order.productPrice === 'string') {
+      cleanPrice = Number((order.productPrice as string).replace(/[^0-9]/g, ''));
+    } else {
+      cleanPrice = order.productPrice;
+    }
   }
 
-  // 2. Buat ID & payload pesanan
-  const orderId = generateOrderId();
   const createdOrder: OrderItem = {
     ...order,
     id: orderId,
     uid: uid || null,
-    date: new Date().toLocaleDateString('id-ID'),
+    date: displayDate,
     status: 'Verifikasi',
+    paymentStatus: 'Belum Dibayar',
   };
 
-  // 3. Pastikan Supabase benar-benar tersedia sebelum menulis.
   if (!isSupabaseConfigured || !supabase) {
-    throw new Error(
-      'Konfigurasi Supabase belum lengkap. Pastikan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY tersedia saat build.'
-    );
+    throw new Error('Konfigurasi Supabase belum lengkap.');
   }
 
-  // 4. Simpan ke Supabase (tabel `orders`)
   const { error } = await supabase.from('orders').insert({
     id: orderId,
     uid: uid || null,
     product: order.product,
     product_id: order.productId || null,
-    product_price: order.productPrice ?? null,
+    product_price: cleanPrice,
     brand: order.brand,
     name: order.name,
-    wa: order.wa,
+    whatsapp: order.wa,
     email: order.email || null,
     total: order.total,
-    order_date: createdOrder.date,
+    order_date: isoDate,
     status: 'Verifikasi',
     addons: order.addons || [],
     notes: order.notes || null,
+    payment_method: order.paymentMethod || null,
+    payment_status: 'Belum Dibayar',
   });
 
   if (error) {
-    console.error('[createOrder] Gagal menyimpan pesanan ke Supabase:', error);
-
-    if (error.code === '42501' || /row-level security/i.test(error.message)) {
-      throw new Error(
-        'Pesanan ditolak oleh Supabase (row-level security). Periksa RLS policy tabel `orders` dan status login pengguna.'
-      );
-    }
-
-    throw new Error(
-      `Gagal menyimpan pesanan ke Supabase${error.code ? ` [${error.code}]` : ''}: ${error.message || 'Terjadi kesalahan pada database.'}`
-    );
+    console.error('[createOrder] Error:', error);
+    throw new Error(`Gagal menyimpan pesanan: ${error.message}`);
   }
 
-  // Kirim notifikasi email ke admin (best-effort, tidak menggagalkan checkout jika error)
   try {
     await fetch('/api/notify-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(createdOrder),
     });
-  } catch (notifyErr) {
-    console.warn('[createOrder] Notifikasi email admin gagal dikirim:', notifyErr);
+  } catch (e) {
+    console.warn('Notifikasi gagal:', e);
   }
 
-  // 5. Kembalikan order jika Supabase berhasil
   return createdOrder;
 }
 
-/**
- * Mengambil daftar pesanan milik pengguna dari Supabase berdasarkan UID.
- */
-export async function getMyOrders(uid: string): Promise<OrderItem[]> {
-  if (!uid || !isSupabaseConfigured || !supabase) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('uid', uid)
-    .order('id', { ascending: false });
-
-  if (error) {
-    console.error('[getMyOrders] Gagal mengambil pesanan dari Supabase:', error);
-    throw new Error('Gagal mengambil data pesanan dari database Supabase.');
-  }
-
-  return (data as OrderRow[]).map(rowToOrderItem);
-}
-
-/**
- * Mengambil satu pesanan spesifik dari Supabase berdasarkan orderId.
- */
-export async function getOrder(orderId: string): Promise<OrderItem | null> {
-  if (!orderId || !isSupabaseConfigured || !supabase) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', orderId)
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[getOrder] Gagal mengambil order ${orderId} dari Supabase:`, error);
-    throw new Error(`Gagal membaca pesanan ${orderId} dari database.`);
-  }
-
-  return data ? rowToOrderItem(data as OrderRow) : null;
-}
-
-/**
- * Mengambil daftar pesanan dari Supabase (dengan opsi filter UID).
- */
-export async function getOrders(uid?: string): Promise<OrderItem[]> {
-  if (uid) {
-    return getMyOrders(uid);
-  }
-  if (!isSupabaseConfigured || !supabase) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .order('id', { ascending: false });
-
-  if (error) {
-    console.error('[getOrders] Gagal mengambil pesanan:', error);
-    throw new Error('Gagal mengambil daftar pesanan dari Supabase.');
-  }
-
-  return (data as OrderRow[]).map(rowToOrderItem);
-}
-
-/**
- * Berlangganan secara real-time ke tabel `orders` Supabase untuk pesanan
- * milik user aktif (pengganti onSnapshot Firestore).
- */
-export function subscribeToMyOrders(
-  uid: string | null,
-  callback: (orders: OrderItem[]) => void
-): () => void {
-  if (!uid || !isSupabaseConfigured || !supabase) {
-    callback([]);
-    return () => {};
-  }
-
-  const fetchAndEmit = () => {
-    getMyOrders(uid)
-      .then(callback)
-      .catch((err) => {
-        console.error('[subscribeToMyOrders] Gagal memuat ulang pesanan:', err);
-      });
-  };
-
-  fetchAndEmit();
-
-  const channel = supabase
-    .channel(`orders-uid-${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'orders', filter: `uid=eq.${uid}` },
-      () => fetchAndEmit()
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}
-
-/**
- * Melacak pesanan tunggal secara publik (tamu) berdasarkan Order ID atau
- * nomor WA, lewat RPC `track_order` (pengganti Cloud Function `trackOrder`).
- * RPC ini SECURITY DEFINER di sisi database sehingga tidak membuka semua
- * data order lewat SELECT langsung ke tamu.
- */
 export async function trackOrder(searchTerm: string): Promise<OrderItem | null> {
-  const cleanTerm = searchTerm.trim();
-  if (!cleanTerm) return null;
-
   if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Layanan pelacakan belum dikonfigurasi.');
+    throw new Error('Konfigurasi Supabase belum lengkap.');
   }
 
-  const { data, error } = await supabase.rpc('track_order', { search_term: cleanTerm });
+  // Pakai RPC track_order (SECURITY DEFINER) supaya tamu tanpa login
+  // bisa melacak pesanan tanpa membuka seluruh tabel orders.
+  const { data, error } = await supabase.rpc('track_order', { search_term: searchTerm.trim() });
 
   if (error) {
-    console.error('[trackOrder] Supabase RPC track_order error:', error);
-    throw new Error('Gagal menghubungi layanan pelacakan pesanan.');
+    console.error('[trackOrder] Error:', error);
+    throw new Error(error.message);
   }
-
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return null;
 
-  return {
-    id: row.id,
-    product: row.product || '',
-    brand: row.brand || '',
-    status: row.status || 'Verifikasi',
-    notes: row.notes || '',
-    date: row.order_date || '',
-    uid: null,
-    name: '',
-    wa: '',
-    total: '',
-  } as OrderItem;
+  return rowToOrderItem({
+    uid: null, product_id: null, product_price: null, whatsapp: '', email: null,
+    addons: [], tracking_number: null, document_link: null, total: '',
+    ...row,
+  } as OrderRow);
+}
+
+export function subscribeToMyOrders(uid: string, callback: (orders: OrderItem[]) => void) {
+  if (!isSupabaseConfigured || !supabase) return () => {};
+
+  const subscription = supabase
+    .channel('my-orders')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'orders',
+      filter: `uid=eq.${uid}`
+    }, async () => {
+      const { data } = await supabase!
+        .from('orders')
+        .select('*')
+        .eq('uid', uid)
+        .order('created_at', { ascending: false });
+      
+      if (data) {
+        callback(data.map(row => rowToOrderItem(row as OrderRow)));
+      }
+    })
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
 }

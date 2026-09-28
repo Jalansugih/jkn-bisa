@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, OrderItem } from '../../types';
 import { PRODUCTS_DATA } from '../../data/mockData';
+import { AVAILABLE_PAYMENT_METHODS as PAYMENT_METHODS, PaymentMethodId, PaymentGroup } from '../../data/paymentMethods';
 import {
   ShoppingCart,
   X,
@@ -11,6 +12,9 @@ import {
   ArrowRight,
   CheckCircle2,
   Trash2,
+  Landmark,
+  QrCode,
+  Wallet,
 } from 'lucide-react';
 
 interface OrderModalProps {
@@ -51,6 +55,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [notes, setNotes] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('bca');
 
   const product: Product = React.useMemo(() => {
     if (products && products.length > 0) {
@@ -70,6 +75,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setCouponCode('');
       setCouponMessage(null);
       setDiscountAmount(0);
+      setPaymentMethod('bca');
     }
   }, [isOpen, productKey]);
 
@@ -128,6 +134,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       total: 'Rp ' + totalPrice.toLocaleString('id-ID'),
       addons: addonsList,
       notes: notes.trim(),
+      paymentMethod,
     };
 
     setIsSubmitting(true);
@@ -424,6 +431,47 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none resize-none transition"
                   placeholder="Catatan khusus atau bidang usaha Anda..."
                 />
+              </div>
+
+              {/* Metode Pembayaran */}
+              <div className="space-y-2 pt-1">
+                <label className="block font-heading font-bold text-xs text-slate-900">
+                  Metode Pembayaran
+                </label>
+                {(['Transfer Bank', 'QRIS', 'E-Wallet'] as PaymentGroup[]).map((group) => {
+                  const items = PAYMENT_METHODS.filter((m) => m.group === group);
+                  if (items.length === 0) return null;
+                  const Icon = group === 'Transfer Bank' ? Landmark : group === 'QRIS' ? QrCode : Wallet;
+                  return (
+                    <div key={group}>
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                        <Icon className="w-3 h-3" /> {group}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {items.map((m) => {
+                          const selected = paymentMethod === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setPaymentMethod(m.id)}
+                              className={`text-left px-3 py-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                                selected
+                                  ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-200'
+                                  : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:border-blue-300 hover:bg-white'
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] text-slate-500">
+                  Detail rekening / QR pembayaran akan tampil di invoice setelah pesanan dibuat.
+                </p>
               </div>
             </>
           )}
