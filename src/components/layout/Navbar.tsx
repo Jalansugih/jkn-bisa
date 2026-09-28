@@ -145,10 +145,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   <div>
     <span className="text-xl font-bold tracking-tight text-slate-900">
-      Bina<span className="text-blue-600">Usaha</span>
+      Bina <span className="text-blue-600">Usaha</span>
     </span>
     <span className="text-[10px] block text-slate-500 -mt-1 font-semibold tracking-wider uppercase">
-      Bersama Bangun Usaha
+      Build Your Business
     </span>
   </div>
     </div>
