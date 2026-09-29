@@ -98,8 +98,12 @@ export function subscribeToProducts(callback: (products: Product[]) => void): ()
     return () => {};
   }
 
+  // Alias lokal yang sudah pasti non-null, supaya TypeScript tidak kehilangan
+  // narrowing di dalam callback/closure (async function & cleanup function).
+  const db = supabase;
+
   const fetchAndEmit = async () => {
-    const { data, error } = await supabase.from('products').select('*');
+    const { data, error } = await db.from('products').select('*');
 
     if (error) {
       console.warn('[subscribeToProducts] Supabase error, using local data:', error);
@@ -112,7 +116,7 @@ export function subscribeToProducts(callback: (products: Product[]) => void): ()
       const defaultList = Object.values(PRODUCTS_DATA);
       try {
         const rows = defaultList.map((p) => ({ id: p.id, ...productToRow(p) }));
-        const { error: seedError } = await supabase.from('products').insert(rows);
+        const { error: seedError } = await db.from('products').insert(rows);
         if (seedError) {
           console.warn('[subscribeToProducts] Auto-seed failed (maybe RLS read-only):', seedError);
         }
@@ -131,13 +135,13 @@ export function subscribeToProducts(callback: (products: Product[]) => void): ()
 
   fetchAndEmit();
 
-  const channel = supabase
+  const channel = db
     .channel('products-catalog')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => fetchAndEmit())
     .subscribe();
 
   return () => {
-    supabase.removeChannel(channel);
+    db.removeChannel(channel);
   };
 }
 
