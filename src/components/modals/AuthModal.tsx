@@ -25,6 +25,7 @@ import {
   loginWithGoogle,
   requestPasswordReset,
   getAuthErrorMessage,
+  EmailVerificationPendingError,
 } from '../../lib/authService';
 
 interface AuthModalProps {
@@ -70,12 +71,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProvider, setLoadingProvider] = useState<'google' | 'form' | 'reset' | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const switchMode = (next: 'register' | 'login') => {
     setMode(next);
     setErrorMsg(null);
+    setInfoMsg(null);
     setShowForgotPassword(false);
     setResetSent(false);
   };
@@ -113,6 +116,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setInfoMsg(null);
 
     if (mode === 'register' && (!fullName.trim() || !whatsapp.trim())) {
       setErrorMsg('Mohon lengkapi Nama Lengkap dan Nomor WhatsApp.');
@@ -149,7 +153,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       );
       handleClose();
     } catch (err) {
-      setErrorMsg(getAuthErrorMessage(err));
+      if (err instanceof EmailVerificationPendingError) {
+        setInfoMsg(err.message);
+      } else {
+        setErrorMsg(getAuthErrorMessage(err));
+      }
     } finally {
       setIsLoading(false);
       setLoadingProvider(null);
@@ -420,6 +428,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
                 <span>{isRegister ? 'Daftar dengan Akun Google' : 'Masuk dengan Google'}</span>
               </button>
+
+              {infoMsg && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-xl p-3">
+                  {infoMsg}
+                </div>
+              )}
 
               {/* Errors from Supabase Auth */}
               {errorMsg && (

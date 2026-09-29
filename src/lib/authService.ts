@@ -24,6 +24,50 @@ export class AuthNotConfiguredError extends Error {
 }
 
 /**
+ * Dilempar ketika pendaftaran email berhasil dibuat di Supabase tetapi
+ * belum ada sesi karena "Confirm email" aktif. Bukan kegagalan: user
+ * tinggal klik link verifikasi di email. UI menampilkannya sebagai info.
+ */
+export class EmailVerificationPendingError extends Error {
+  constructor(email: string) {
+    super(
+      `Pendaftaran berhasil! Kami mengirim link verifikasi ke ${email}. Klik link tersebut (cek juga folder spam), lalu masuk ke akun Anda.`
+    );
+    this.name = 'EmailVerificationPendingError';
+  }
+}
+
+/**
+ * Login Google memakai redirect. Kalau Supabase/Google menolak (mis.
+ * "Database error saving new user", redirect_uri_mismatch), browser
+ * dikembalikan ke situs dengan ?error_description=... atau #error_description=...
+ * Dibaca SEKALI saat modul dimuat (sebelum supabase-js membersihkan URL),
+ * lalu ditampilkan lewat consumeAuthRedirectError().
+ */
+let pendingRedirectError: string | null = null;
+try {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  const desc = hash.get('error_description') || query.get('error_description');
+  const code = hash.get('error_code') || query.get('error_code');
+  if (desc || code) {
+    pendingRedirectError = `Login Google gagal: ${(desc || code || '').replace(/\+/g, ' ')}`;
+    console.error('[Auth redirect error]', { code, desc });
+    for (const k of ['error', 'error_code', 'error_description']) query.delete(k);
+    const qs = query.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }
+} catch {
+  /* diabaikan */
+}
+
+export function consumeAuthRedirectError(): string | null {
+  const msg = pendingRedirectError;
+  pendingRedirectError = null;
+  return msg;
+}
+
+/**
  * Menerjemahkan error dari Supabase Auth menjadi pesan Bahasa Indonesia
  * yang ramah pengguna. Dipetakan dari `AuthError.code` resmi Supabase
  * (https://supabase.com/docs/guides/auth/debugging/error-codes) — BUKAN
@@ -32,6 +76,7 @@ export class AuthNotConfiguredError extends Error {
  */
 export function getAuthErrorMessage(err: unknown): string {
   if (err instanceof AuthNotConfiguredError) return err.message;
+  if (err instanceof EmailVerificationPendingError) return err.message;
 
   const code = (err as { code?: string })?.code || '';
   const message = ((err as { message?: string })?.message || '').toLowerCase();
@@ -75,6 +120,9 @@ export function getAuthErrorMessage(err: unknown): string {
   }
   if (message.includes('rate limit')) {
     return 'Terlalu banyak percobaan. Silakan tunggu beberapa saat lalu coba lagi.';
+  }
+  if (message.includes('database error saving new user')) {
+    return 'Server gagal membuat profil akun baru (error database). Hubungi admin situs; detail ada di Supabase > Logs > Postgres.';
   }
   if (message.includes('network') || message.includes('fetch')) {
     return 'Koneksi bermasalah. Periksa internet Anda dan coba lagi.';
@@ -250,7 +298,21 @@ export async function registerWithEmail(
 
       if (error) throw error;
       if (!data.user) {
-        throw new Error('Registrasi berhasil tetapi sesi pengguna tidak ditemukan. Cek email verifikasi Anda.');
+        throw new Error('Registrasi gagal: server tidak mengembalikan data pengguna. Coba lagi.');
+      }
+
+      // Supabase (saat "Confirm email" aktif) TIDAK mengirim error untuk email
+      // yang sudah terdaftar; ia mengembalikan user palsu dengan identities kosong.
+      if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        const dup = new Error('User already registered') as Error & { code?: string };
+        dup.code = 'user_already_exists';
+        throw dup;
+      }
+
+      // Tanpa sesi = menunggu verifikasi email. Jangan pura-pura sudah login,
+      // karena update/upsert profil di bawah akan ditolak RLS (auth.uid() null).
+      if (!data.session) {
+        throw new EmailVerificationPendingError(input.email.trim());
       }
 
       // Lengkapi field yang trigger auto-create tidak tahu (whatsapp, businessName)

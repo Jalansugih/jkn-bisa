@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { OrderItem, ToastMessage, RfqFormData, AuthUser, Product, Article } from './types';
-import { subscribeToAuthChanges, logout } from './lib/authService';
+import { subscribeToAuthChanges, logout, consumeAuthRedirectError } from './lib/authService';
 import { createOrder, subscribeToMyOrders } from './lib/orderService';
 import { captureReferralFromUrl, useReferralCode } from './lib/referral';
 import { subscribeToProducts } from './lib/productService';
@@ -281,6 +281,13 @@ export const App: React.FC = () => {
     setAuthModalMode('register');
     setIsAuthModalOpen(true);
   };
+
+  // Tampilkan error dari redirect login Google (mis. 'Database error saving new user')
+  useEffect(() => {
+    const msg = consumeAuthRedirectError();
+    if (msg) showToast(msg, 'error');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Simpan ?ref= (30 hari) dan buka order otomatis kalau link berupa /paket/<id>
   useEffect(() => {
