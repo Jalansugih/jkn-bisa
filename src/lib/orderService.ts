@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { OrderItem } from '../types';
+import { getStoredReferralCode } from './referral';
 
 export class OrderTimeoutError extends Error {
   constructor() {
@@ -110,6 +111,7 @@ export async function createOrder(
     notes: order.notes || null,
     payment_method: order.paymentMethod || null,
     payment_status: 'Belum Dibayar',
+    referred_by_code: getStoredReferralCode(),
   });
 
   if (error) {

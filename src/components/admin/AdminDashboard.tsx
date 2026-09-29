@@ -10,6 +10,7 @@ import { AdminRfqPage } from './AdminRfqPage';
 import { AdminProductsPage } from './AdminProductsPage';
 import { AdminArticlesPage } from './AdminArticlesPage';
 import { AdminUsersPage } from './AdminUsersPage';
+import { AdminCommissionsPage } from './AdminCommissionsPage';
 import {
   subscribeToAllOrders,
   subscribeToAllUsers,
@@ -43,7 +44,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const getAdminTabFromPath = (): AdminTab => {
     const segment = window.location.pathname.replace(/^\/admin\/?/, '').split('/')[0];
-    const validTabs: AdminTab[] = ['overview', 'orders', 'rfq', 'products', 'articles', 'users'];
+    const validTabs: AdminTab[] = ['overview', 'orders', 'rfq', 'products', 'articles', 'users', 'commissions'];
     return validTabs.includes(segment as AdminTab) ? (segment as AdminTab) : 'overview';
   };
 
@@ -188,6 +189,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {currentTab === 'users' && (
           <AdminUsersPage users={allUsers} currentUserId={currentUser?.id} showToast={showToast} />
         )}
+
+        {currentTab === 'commissions' && <AdminCommissionsPage showToast={showToast} />}
       </AdminLayout>
     </AdminGuard>
   );

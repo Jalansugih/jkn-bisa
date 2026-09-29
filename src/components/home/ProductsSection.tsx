@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Product } from '../../types';
 import { PRODUCTS_DATA } from '../../data/mockData';
+import { ProductShareMenu } from '../common/ProductShareMenu';
 import {
   Globe,
   Zap,
@@ -33,6 +34,9 @@ interface ProductsSectionProps {
   onClearSearch?: () => void;
   onSelectProductOrder: (prodKey: string) => void;
   onAskWhatsapp: (prodName: string) => void;
+  referralCode: string | null;
+  onRequireLogin: () => void;
+  showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
 export const ProductsSection: React.FC<ProductsSectionProps> = ({
@@ -42,6 +46,9 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
   onClearSearch,
   onSelectProductOrder,
   onAskWhatsapp,
+  referralCode,
+  onRequireLogin,
+  showToast,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
 
@@ -419,6 +426,14 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                       <MessageCircle className="w-4 h-4 text-emerald-600" />
                       <span>Tanya via WhatsApp</span>
                     </button>
+                    <ProductShareMenu
+                      productKey={product.id}
+                      productName={product.name}
+                      price={product.price}
+                      referralCode={referralCode}
+                      onRequireLogin={onRequireLogin}
+                      showToast={showToast}
+                    />
                   </div>
                 </div>
               </div>

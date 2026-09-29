@@ -1,11 +1,15 @@
 import React from 'react';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { ProductShareMenu } from '../common/ProductShareMenu';
 
 interface PricingSectionProps {
   onSelectProduct: (prodKey: string) => void;
+  referralCode: string | null;
+  onRequireLogin: () => void;
+  showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
-export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct }) => {
+export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct, referralCode, onRequireLogin, showToast }) => {
   return (
     <section className="py-20 bg-white border-t border-slate-200" id="harga">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -74,6 +78,9 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct 
               <span>Pilih Paket Starter</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+            <div className="mt-3">
+              <ProductShareMenu productKey="rajakas_pos" productName="RajaKas POS Digital" price={1118600} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
+            </div>
           </div>
 
           {/* Tier 2: PROFESSIONAL (PALING POPULER) */}
@@ -132,6 +139,9 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct 
               <span>Pilih Paket Pro</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+            <div className="mt-3">
+              <ProductShareMenu dark productKey="website_pro" productName="Website UMKM Pro + POS" price={3147900} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
+            </div>
           </div>
 
           {/* Tier 3: AKSELERASI LEGALITAS */}
@@ -186,6 +196,9 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct 
               <span>Pilih Paket PT Pro</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+            <div className="mt-3">
+              <ProductShareMenu productKey="pt_pro" productName="Paket PT Pro" price={5498600} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
+            </div>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   Package,
   BookOpen,
   Users,
+  Wallet,
   ExternalLink,
   LogOut,
   Menu,
@@ -90,6 +91,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       icon: Users,
       badge: usersCount > 0 ? usersCount : undefined,
       badgeColor: 'bg-slate-700 text-white',
+    },
+    {
+      id: 'commissions',
+      label: 'Komisi Referral',
+      icon: Wallet,
     },
   ];
 

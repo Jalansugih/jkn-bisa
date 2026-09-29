@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { OrderItem, ToastMessage, RfqFormData, AuthUser, Product, Article } from './types';
 import { subscribeToAuthChanges, logout } from './lib/authService';
 import { createOrder, subscribeToMyOrders } from './lib/orderService';
+import { captureReferralFromUrl, useReferralCode } from './lib/referral';
 import { subscribeToProducts } from './lib/productService';
 import { subscribeToArticles } from './lib/articleService';
 import { ARTICLES_DATA } from './data/mockData';
@@ -89,6 +90,7 @@ export const App: React.FC = () => {
   // Authenticated user state, synced in real time from Supabase Auth (see useEffect below)
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authUid, setAuthUid] = useState<string | null>(null);
+  const referralCode = useReferralCode(authUid);
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthChanges((user) => {
@@ -274,6 +276,20 @@ export const App: React.FC = () => {
     setSelectedProductKey(prodKey);
     setIsOrderModalOpen(true);
   };
+
+  const handleRequireLogin = () => {
+    setAuthModalMode('register');
+    setIsAuthModalOpen(true);
+  };
+
+  // Simpan ?ref= (30 hari) dan buka order otomatis kalau link berupa /paket/<id>
+  useEffect(() => {
+    const { productKey } = captureReferralFromUrl();
+    if (productKey) {
+      setSelectedProductKey(productKey);
+      setIsOrderModalOpen(true);
+    }
+  }, []);
 
   const handleOrderCompleted = async (
     orderDraft: Omit<OrderItem, 'id' | 'date' | 'status'>,
@@ -477,6 +493,7 @@ export const App: React.FC = () => {
                 : null
             }
             orders={orders}
+            referralCode={referralCode}
             onGoHome={() => navigateAppPath('/')}
             onOpenOrder={(serviceId) => {
               if (serviceId) {
@@ -650,10 +667,18 @@ export const App: React.FC = () => {
               onClearSearch={() => setSearchQuery('')}
               onSelectProductOrder={handleOpenOrder}
               onAskWhatsapp={handleAskWhatsapp}
+              referralCode={referralCode}
+              onRequireLogin={handleRequireLogin}
+              showToast={showToast}
             />
 
             {/* 9. Pricing Tiers Section */}
-            <PricingSection onSelectProduct={handleOpenOrder} />
+            <PricingSection
+              onSelectProduct={handleOpenOrder}
+              referralCode={referralCode}
+              onRequireLogin={handleRequireLogin}
+              showToast={showToast}
+            />
 
             {/* 10. Workflow 5-Steps Section */}
             <WorkflowSection onOpenRfqModal={() => setIsRfqModalOpen(true)} />

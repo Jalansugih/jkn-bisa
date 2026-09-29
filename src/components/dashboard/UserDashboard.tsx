@@ -3,6 +3,7 @@ import DashboardHeader from './DashboardHeader';
 import DashboardStats from './DashboardStats';
 import OrderStatusBadge from './OrderStatusBadge';
 import { OrderItem } from '../../types';
+import { ReferralPanel } from './ReferralPanel';
 import { ShoppingBag, MessageSquare, Search, Receipt, ArrowRight } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -18,6 +19,7 @@ interface UserDashboardProps {
   onOpenOrder?: (serviceId?: string) => void;
   onOpenTracker?: () => void;
   onSelectOrderInvoice?: (order: OrderItem) => void;
+  referralCode?: string | null;
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({
@@ -27,6 +29,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenOrder,
   onOpenTracker,
   onSelectOrderInvoice,
+  referralCode,
 }) => {
   // ==============================
   // STATISTIK PESANAN
@@ -73,6 +76,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
           processingOrders={processingOrders}
           completedOrders={completedOrders}
         />
+
+        <ReferralPanel referralCode={referralCode ?? null} />
 
         {/* ==============================
             PESANAN SAYA
