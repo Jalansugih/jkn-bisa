@@ -18,6 +18,7 @@ interface ProductRow {
   bonus: string | null;
   features: string[] | null;
   icon_name: string | null;
+  image_url: string | null;
   popular: boolean | null;
   active: boolean | null;
 }
@@ -37,6 +38,7 @@ function rowToProduct(row: ProductRow): Product {
     bonus: row.bonus || undefined,
     features: Array.isArray(row.features) ? row.features : [],
     iconName: row.icon_name || 'Package',
+    imageUrl: row.image_url || undefined,
     popular: Boolean(row.popular),
     active: row.active !== false,
   };
@@ -56,6 +58,8 @@ function productToRow(product: Partial<Product>): Record<string, unknown> {
   if (product.bonus !== undefined) row.bonus = product.bonus;
   if (product.features !== undefined) row.features = product.features;
   if (product.iconName !== undefined) row.icon_name = product.iconName;
+  // Kosong/dihapus → null supaya kolom benar-benar dikosongkan di database
+  if ('imageUrl' in product) row.image_url = product.imageUrl || null;
   if (product.popular !== undefined) row.popular = product.popular;
   if (product.active !== undefined) row.active = product.active;
   return row;

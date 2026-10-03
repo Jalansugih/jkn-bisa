@@ -42,13 +42,13 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-  let product: { name: string; description: string | null; price: number } | null = null;
+  let product: { name: string; description: string | null; price: number; image_url: string | null } | null = null;
 
   if (supabaseUrl && anonKey && /^[A-Za-z0-9_-]+$/.test(key)) {
     try {
       const url =
         `${supabaseUrl.replace(/\/$/, '')}/rest/v1/products` +
-        `?select=name,description,price&id=eq.${encodeURIComponent(key)}&active=eq.true&limit=1`;
+        `?select=name,description,price,image_url&id=eq.${encodeURIComponent(key)}&active=eq.true&limit=1`;
       const r = await fetch(url, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` } });
       if (r.ok) product = ((await r.json()) as NonNullable<typeof product>[])[0] || null;
     } catch { /* jatuh ke meta default */ }
@@ -59,7 +59,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     const title = `${product.name} - ${price}`;
     const description = clip(product.description || 'Solusi legalitas, website, dan kasir untuk UMKM.', 200);
     const pageUrl = `${origin}/paket/${encodeURIComponent(key)}`; // tanpa ?ref supaya kanonik
-    const image = `${origin}/logo-login.png`; // produk belum punya gambar sendiri
+    // Pakai foto produk bila ada (harus URL https penuh), kalau tidak -> logo
+    const image = product.image_url && /^https:\/\//i.test(product.image_url) ? product.image_url : `${origin}/logo-login.png`;
 
     const tags = [
       `<meta name="description" content="${esc(description)}" />`,

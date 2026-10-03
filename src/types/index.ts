@@ -12,6 +12,8 @@ export interface Product {
   bonus?: string;
   features: string[];
   iconName: string;
+  /** URL foto produk (Supabase Storage bucket `products`). Kosong = tampilkan ikon. */
+  imageUrl?: string;
   popular?: boolean;
   active?: boolean;
   createdAt?: unknown;

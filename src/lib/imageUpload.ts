@@ -68,6 +68,37 @@ export async function uploadArticleImage(file: File, opts: ArticleImageOptions =
   return url;
 }
 
+/**
+ * Upload foto produk ke Supabase Storage (bucket `products`).
+ * Foto dikompres di browser (lebar maks 1000px, WebP) sehingga ringan di katalog.
+ */
+export async function uploadProductImage(file: File): Promise<string> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase belum dikonfigurasi, upload gambar tidak tersedia.');
+  }
+  // GIF tidak dipakai untuk foto produk (bucket hanya menerima JPG/PNG/WEBP)
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('Format foto harus JPG, PNG, atau WEBP.');
+  }
+  if (file.size > MAX_INPUT_BYTES) {
+    throw new Error('Ukuran foto maksimal 10 MB.');
+  }
+
+  const blob = await compressImage(file, 1000);
+  const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
+
+  const now = new Date();
+  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const name = `${crypto.randomUUID()}.${ext}`;
+
+  const { url } = await uploadFile('products', `${folder}/${name}`, blob, {
+    upsert: false,
+    contentType: blob.type,
+    cacheControl: '31536000', // nama file unik -> aman di-cache 1 tahun
+  });
+  return url;
+}
+
 /** true jika HTML mengandung gambar base64 (data:) yang akan membengkakkan database */
 export function hasInlineBase64Image(html: string): boolean {
   return /<img[^>]+src\s*=\s*["']?data:/i.test(html);

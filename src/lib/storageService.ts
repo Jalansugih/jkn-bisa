@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase/client';
 
-export type StorageBucket = 'avatars' | 'documents' | 'articles' | 'logos';
+export type StorageBucket = 'avatars' | 'documents' | 'articles' | 'logos' | 'products';
 
 export interface UploadResult {
   path: string;

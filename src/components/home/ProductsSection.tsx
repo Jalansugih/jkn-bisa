@@ -51,6 +51,8 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
   showToast,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
+  // Foto yang gagal dimuat -> kartu otomatis kembali memakai ikon
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (initialCategory) {
@@ -293,6 +295,7 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
             const isPtPro = product.id === 'pt_pro';
             const isBundling = product.id === 'bundling_allinone';
             const isLegalitas = product.category === 'legalitas';
+            const hasImage = Boolean(product.imageUrl) && !brokenImages.has(product.id);
 
             return (
               <div
@@ -336,15 +339,37 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                   </div>
                 )}
 
+                {/* Foto Produk */}
+                {hasImage && (
+                  <div className="aspect-[16/10] w-full overflow-hidden bg-slate-100 border-b border-slate-100">
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                      onError={() =>
+                        setBrokenImages((prev) => {
+                          const next = new Set(prev);
+                          next.add(product.id);
+                          return next;
+                        })
+                      }
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  </div>
+                )}
+
                 {/* Card Header */}
                 <div className={`p-6 border-b border-slate-100 ${getHeaderGradient(product)}`}>
-                  <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-xs ${getIconColor(
-                      product
-                    )}`}
-                  >
-                    {getProductIcon(product.iconName)}
-                  </div>
+                  {!hasImage && (
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-xs ${getIconColor(
+                        product
+                      )}`}
+                    >
+                      {getProductIcon(product.iconName)}
+                    </div>
+                  )}
                   <h3 className="font-heading font-bold text-xl text-slate-900 mb-1">{product.name}</h3>
 
                   {isPtPro ? (

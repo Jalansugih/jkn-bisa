@@ -251,11 +251,15 @@ create table if not exists public.products (
   bonus          text,
   features       text[] default '{}',
   icon_name      text default 'Package',
+  image_url      text,
   popular        boolean default false,
   active         boolean default true,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+
+-- Untuk database yang sudah ada: kolom foto produk (lihat migrations/2026-10-03_product_images.sql)
+alter table public.products add column if not exists image_url text;
 
 alter table public.products enable row level security;
 

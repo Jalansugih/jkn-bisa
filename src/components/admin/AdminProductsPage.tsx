@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Product } from '../../types';
 import { addProduct, updateProduct, deleteProduct, setProductActive } from '../../lib/productService';
+import { uploadProductImage } from '../../lib/imageUpload';
 import {
   Search,
   Filter,
@@ -22,6 +23,9 @@ import {
   Award,
   Shield,
   Layers,
+  Upload,
+  Image as ImageIcon,
+  Trash,
 } from 'lucide-react';
 
 interface AdminProductsPageProps {
@@ -68,6 +72,9 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
   const [formBonus, setFormBonus] = useState('');
   const [formIconName, setFormIconName] = useState('Package');
   const [formPopular, setFormPopular] = useState(false);
+  const [formImageUrl, setFormImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Features list manager
   const [featuresList, setFeaturesList] = useState<string[]>([]);
@@ -105,6 +112,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     setFormBonus('Konsultasi Gratis');
     setFormIconName('Globe');
     setFormPopular(false);
+    setFormImageUrl('');
     setFeaturesList([
       'Desain modern & responsif',
       'Integrasi WhatsApp otomatis',
@@ -129,9 +137,26 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     setFormBonus(product.bonus || '');
     setFormIconName(product.iconName || 'Package');
     setFormPopular(Boolean(product.popular));
+    setFormImageUrl(product.imageUrl || '');
     setFeaturesList(product.features || []);
     setNewFeatureInput('');
     setIsModalOpen(true);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsUploadingImage(true);
+    try {
+      const url = await uploadProductImage(file);
+      setFormImageUrl(url);
+      showToast('Foto produk berhasil diunggah.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal mengunggah foto produk.', 'error');
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleAddFeature = () => {
@@ -163,6 +188,10 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
       showToast('Harga produk harus lebih dari 0!', 'warning');
       return;
     }
+    if (isUploadingImage) {
+      showToast('Tunggu sampai foto selesai diunggah.', 'warning');
+      return;
+    }
     if (featuresList.length === 0) {
       showToast('Tambahkan minimal 1 fitur produk!', 'warning');
       return;
@@ -183,6 +212,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
       bonus: formBonus.trim() || undefined,
       features: featuresList,
       iconName: formIconName,
+      imageUrl: formImageUrl.trim() || undefined,
       popular: formPopular,
       active: isEditMode ? (products.find((p) => p.id === formId)?.active !== false) : true,
     };
@@ -294,6 +324,19 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
               className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition group"
             >
               <div>
+                {p.imageUrl ? (
+                  <img
+                    src={p.imageUrl}
+                    alt={p.name}
+                    loading="lazy"
+                    className="w-full h-32 object-cover rounded-xl border border-slate-200 mb-3"
+                  />
+                ) : (
+                  <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-400 text-[11px] flex items-center justify-center gap-1.5 mb-3">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Belum ada foto</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${p.active === false ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                     {p.active === false ? 'INACTIVE' : 'ACTIVE'} · 
@@ -404,7 +447,10 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
               <div><div className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Detail Produk</div><h3 className="text-lg font-extrabold text-slate-900">{detailProduct.name}</h3></div>
               <button onClick={() => setDetailProduct(null)} className="p-2 rounded-xl hover:bg-slate-100"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-5 space-y-4 text-sm">
+            <div className="p-5 space-y-4 text-sm max-h-[70vh] overflow-y-auto">
+              {detailProduct.imageUrl && (
+                <img src={detailProduct.imageUrl} alt={detailProduct.name} loading="lazy" className="w-full max-h-56 object-cover rounded-xl border border-slate-200" />
+              )}
               <div className="grid grid-cols-2 gap-3"><div className="p-3 rounded-xl bg-slate-50"><span className="text-xs text-slate-400">Harga pusat</span><div className="font-black text-slate-900">{formatRupiah(detailProduct.price)}</div></div><div className="p-3 rounded-xl bg-slate-50"><span className="text-xs text-slate-400">Status</span><div className="font-bold">{detailProduct.active === false ? 'Inactive' : 'Active'}</div></div></div>
               <div><span className="text-xs text-slate-400">Deskripsi</span><p className="text-slate-700 mt-1">{detailProduct.description || '-'}</p></div>
               <div><span className="text-xs text-slate-400">Fitur</span><ul className="mt-2 space-y-1">{detailProduct.features.map((f,i)=><li key={i} className="flex gap-2"><Check className="w-4 h-4 text-emerald-500" />{f}</li>)}</ul></div>
@@ -536,6 +582,59 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                   placeholder="Penjelasan ringkas tentang keunggulan paket ini..."
                   className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* Foto Produk */}
+              <div>
+                <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Foto Produk (Opsional)
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    value={formImageUrl}
+                    onChange={(e) => setFormImageUrl(e.target.value)}
+                    placeholder="Unggah foto, atau tempel URL gambar (https://...)"
+                    className="flex-1 min-w-0 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                  <button
+                    type="button"
+                    disabled={isUploadingImage}
+                    onClick={() => imageInputRef.current?.click()}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
+                  >
+                    {isUploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    Unggah
+                  </button>
+                </div>
+                {formImageUrl ? (
+                  <div className="relative">
+                    <img
+                      src={formImageUrl}
+                      alt="Pratinjau foto produk"
+                      className="w-full max-h-44 object-cover rounded-xl border border-slate-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormImageUrl('')}
+                      className="absolute top-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-rose-600 border border-rose-200 text-[11px] font-bold shadow-xs cursor-pointer"
+                    >
+                      <Trash className="w-3 h-3" />
+                      Hapus Foto
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    Format JPG/PNG/WEBP, otomatis dikompres. Rasio landscape (mis. 4:3 atau 16:10) paling pas di kartu. Jika kosong, kartu tampil dengan ikon layanan.
+                  </p>
+                )}
               </div>
 
               {/* Badge & Bonus */}

@@ -136,6 +136,7 @@ export interface Database {
           bonus: string | null;
           features: string[];
           icon_name: string;
+          image_url: string | null;
           popular: boolean;
           created_at: string;
           updated_at: string;
@@ -154,6 +155,7 @@ export interface Database {
           bonus?: string | null;
           features?: string[];
           icon_name?: string;
+          image_url?: string | null;
           popular?: boolean;
           created_at?: string;
           updated_at?: string;
