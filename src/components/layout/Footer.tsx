@@ -7,6 +7,14 @@ import {
   FileText,
   Lock,
 } from 'lucide-react';
+import { PRIVACY_PATH, TERMS_PATH } from '../../lib/legalPaths';
+
+/** Klik biasa = navigasi tanpa reload; klik tengah / Ctrl+klik tetap membuka tab baru. */
+const handleLegalClick = (e: React.MouseEvent<HTMLAnchorElement>, open: () => void) => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  open();
+};
 
 interface FooterProps {
   onOpenOrderTracker: () => void;
@@ -234,18 +242,20 @@ export const Footer: React.FC<FooterProps> = ({
               &copy; {new Date().getFullYear()} BinaUsaha Indonesia. Hak Cipta Dilindungi Undang-Undang.
             </p>
             <div className="flex items-center gap-6 font-semibold">
-              <button
-                onClick={onOpenTerms}
+              <a
+                href={TERMS_PATH}
+                onClick={(e) => handleLegalClick(e, onOpenTerms)}
                 className="text-blue-400 hover:text-blue-300 hover:underline transition flex items-center gap-1.5 cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5" /> Syarat & Ketentuan
-              </button>
-              <button
-                onClick={onOpenPrivacy}
+              </a>
+              <a
+                href={PRIVACY_PATH}
+                onClick={(e) => handleLegalClick(e, onOpenPrivacy)}
                 className="text-slate-400 hover:text-slate-200 hover:underline transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5" /> Kebijakan Privasi
-              </button>
+              </a>
               {onOpenAdmin && (
                 <button
                   onClick={onOpenAdmin}

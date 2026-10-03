@@ -33,6 +33,9 @@ interface AuthModalProps {
   onClose: () => void;
   onAuthSuccess: (user: AuthUser, message: string) => void;
   initialMode?: 'register' | 'login';
+  /** Dibuka dari kalimat persetujuan di bawah tombol. Jika tidak diberikan, tautan membuka halaman biasa. */
+  onOpenTerms?: () => void;
+  onOpenPrivacy?: () => void;
 }
 
 /**
@@ -51,6 +54,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onAuthSuccess,
   initialMode = 'register',
+  onOpenTerms,
+  onOpenPrivacy,
 }) => {
   const [mode, setMode] = useState<'register' | 'login'>(initialMode);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -602,6 +607,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Persetujuan Syarat & Kebijakan Privasi (juga berlaku untuk masuk/daftar dengan Google) */}
+              <p className="text-center text-[11px] text-slate-500 leading-relaxed">
+                {isRegister ? 'Dengan mendaftar' : 'Dengan masuk'}, Anda menyetujui{' '}
+                <a
+                  href="/syarat-ketentuan"
+                  onClick={(e) => {
+                    if (!onOpenTerms) return;
+                    e.preventDefault();
+                    onOpenTerms();
+                  }}
+                  className="font-semibold text-blue-600 hover:underline"
+                >
+                  Syarat &amp; Ketentuan
+                </a>{' '}
+                dan{' '}
+                <a
+                  href="/kebijakan-privasi"
+                  onClick={(e) => {
+                    if (!onOpenPrivacy) return;
+                    e.preventDefault();
+                    onOpenPrivacy();
+                  }}
+                  className="font-semibold text-blue-600 hover:underline"
+                >
+                  Kebijakan Privasi
+                </a>{' '}
+                BinaUsaha.
+              </p>
 
               {/* Contextual switch link (redundant with tabs above, but reinforces the distinction) */}
               <p className="text-center text-xs text-slate-500">

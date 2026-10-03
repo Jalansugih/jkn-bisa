@@ -3,6 +3,8 @@
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/(.*)", "destination": "/index.html" },
     { "source": "/artikel", "destination": "/index.html" },
+    { "source": "/syarat-ketentuan", "destination": "/index.html" },
+    { "source": "/kebijakan-privasi", "destination": "/index.html" },
     { "source": "/artikel/:slug", "destination": "/api/artikel?slug=:slug" },
     { "source": "/paket/:key", "destination": "/api/paket?key=:key" }
   ]

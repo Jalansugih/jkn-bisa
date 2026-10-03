@@ -7,6 +7,7 @@ import { subscribeToProducts } from './lib/productService';
 import { subscribeToArticles } from './lib/articleService';
 import { ARTICLES_DATA } from './data/mockData';
 import { ARTICLE_BASE_PATH, articlePath, parseArticleSlug, slugify } from './lib/slug';
+import { LegalView, legalPath, legalViewFromPath } from './lib/legalPaths';
 
 // Layout components
 import { TopPromoBar } from './components/layout/TopPromoBar';
@@ -40,6 +41,10 @@ import { SingleArticlePage } from './components/articles/SingleArticlePage';
 // Dashboard component
 import UserDashboard from './components/dashboard/UserDashboard';
 
+// Halaman hukum (Syarat & Ketentuan, Kebijakan Privasi)
+import { TermsOfServicePage } from './components/legal/TermsOfServicePage';
+import { PrivacyPolicyPage } from './components/legal/PrivacyPolicyPage';
+
 
 // Service Pages (Jasa & Solusi)
 import { DigitalServicePage } from './components/services/DigitalServicePage';
@@ -56,8 +61,6 @@ import { ArticleModal } from './components/modals/ArticleModal';
 import { ConsultationModal } from './components/modals/ConsultationModal';
 import { MyOrdersModal } from './components/modals/MyOrdersModal';
 import { CareerModal } from './components/modals/CareerModal';
-import { TermsModal } from './components/modals/TermsModal';
-import { PrivacyModal } from './components/modals/PrivacyModal';
 import { RfqModal } from './components/modals/RfqModal';
 import { AuthModal } from './components/modals/AuthModal';
 import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
@@ -75,8 +78,6 @@ export const App: React.FC = () => {
   const [isMyOrdersModalOpen, setIsMyOrdersModalOpen] = useState<boolean>(false);
   const [isRfqModalOpen, setIsRfqModalOpen] = useState<boolean>(false);
   const [isCareerModalOpen, setIsCareerModalOpen] = useState<boolean>(false);
-  const [isTermsModalOpen, setIsTermsModalOpen] = useState<boolean>(false);
-  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState<boolean>(false);
 
   // Auth / Registration modal state
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -115,9 +116,11 @@ export const App: React.FC = () => {
 
   // Public pages remain state-driven. The dedicated /admin entry is mounted by main.tsx.
   const [currentView, setCurrentView] = useState<
-    'home' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin'
+    'home' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin' | 'terms' | 'privacy'
 >(() => {
     const path = window.location.pathname;
+    const legal = legalViewFromPath(path);
+    if (legal) return legal;
     if (parseArticleSlug(path)) return 'article-detail';
     if (path === ARTICLE_BASE_PATH || path === ARTICLE_BASE_PATH + '/') return 'articles';
     return 'home';
@@ -127,6 +130,12 @@ export const App: React.FC = () => {
     if (replace) window.history.replaceState({}, '', path);
     else window.history.pushState({}, '', path);
     setCurrentView(path === '/admin' || path.startsWith('/admin/') ? 'admin' : 'home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Buka halaman Syarat & Ketentuan / Kebijakan Privasi (URL ditulis oleh efek sinkronisasi di bawah)
+  const openLegalPage = (view: LegalView) => {
+    setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -181,7 +190,10 @@ export const App: React.FC = () => {
     const syncFromPath = () => {
       const path = window.location.pathname;
       const slug = parseArticleSlug(path);
-      if (slug) {
+      const legal = legalViewFromPath(path);
+      if (legal) {
+        setCurrentView(legal);
+      } else if (slug) {
         setArticleSlug(slug);
         setCurrentView('article-detail');
       } else if (path === ARTICLE_BASE_PATH || path === ARTICLE_BASE_PATH + '/') {
@@ -202,8 +214,13 @@ export const App: React.FC = () => {
       target = slugArticle ? articlePath(slugArticle.slug || slugify(slugArticle.title)) : null;
     } else if (currentView === 'articles') {
       target = ARTICLE_BASE_PATH;
-    } else if (window.location.pathname.startsWith(ARTICLE_BASE_PATH)) {
-      target = '/'; // keluar dari area artikel
+    } else if (currentView === 'terms' || currentView === 'privacy') {
+      target = legalPath(currentView);
+    } else if (
+      window.location.pathname.startsWith(ARTICLE_BASE_PATH) ||
+      legalViewFromPath(window.location.pathname)
+    ) {
+      target = '/'; // keluar dari area artikel / halaman hukum
     }
     if (target && window.location.pathname !== target) {
       window.history.pushState({}, '', target);
@@ -216,6 +233,10 @@ export const App: React.FC = () => {
       document.title = `${slugArticle.title} | BinaUsaha`;
     } else if (currentView === 'articles') {
       document.title = 'Artikel & Tips Bisnis UMKM | BinaUsaha';
+    } else if (currentView === 'terms') {
+      document.title = 'Syarat & Ketentuan | BinaUsaha';
+    } else if (currentView === 'privacy') {
+      document.title = 'Kebijakan Privasi | BinaUsaha';
     } else {
       document.title = 'BinaUsaha - Platform Digital UMKM Indonesia';
     }
@@ -564,6 +585,22 @@ export const App: React.FC = () => {
             showToast={showToast}
             initialCategory={articlesCategoryFilter}
           />
+        ) : currentView === 'terms' ? (
+          <TermsOfServicePage
+            onBackToHome={() => {
+              setCurrentView('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNavigate={openLegalPage}
+          />
+        ) : currentView === 'privacy' ? (
+          <PrivacyPolicyPage
+            onBackToHome={() => {
+              setCurrentView('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNavigate={openLegalPage}
+          />
         ) : currentView === 'service-digital' ? (
           <DigitalServicePage
             onBackToHome={() => {
@@ -720,8 +757,8 @@ export const App: React.FC = () => {
         <Footer
           onOpenOrderTracker={() => setIsTrackerModalOpen(true)}
           onOpenConsultation={() => setIsConsultModalOpen(true)}
-          onOpenTerms={() => setIsTermsModalOpen(true)}
-          onOpenPrivacy={() => setIsPrivacyModalOpen(true)}
+          onOpenTerms={() => openLegalPage('terms')}
+          onOpenPrivacy={() => openLegalPage('privacy')}
           onOpenServicePage={handleNavigateService}
           onSelectProduct={(key) => {
             setCurrentView('home');
@@ -790,21 +827,19 @@ export const App: React.FC = () => {
         onClose={() => setIsCareerModalOpen(false)}
       />
 
-      <TermsModal
-        isOpen={isTermsModalOpen}
-        onClose={() => setIsTermsModalOpen(false)}
-      />
-
-      <PrivacyModal
-        isOpen={isPrivacyModalOpen}
-        onClose={() => setIsPrivacyModalOpen(false)}
-      />
-
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
         initialMode={authModalMode}
+        onOpenTerms={() => {
+          setIsAuthModalOpen(false);
+          openLegalPage('terms');
+        }}
+        onOpenPrivacy={() => {
+          setIsAuthModalOpen(false);
+          openLegalPage('privacy');
+        }}
       />
 
       <ResetPasswordModal
