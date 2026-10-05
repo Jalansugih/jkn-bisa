@@ -2,14 +2,21 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Share2, Copy, Check, MessageCircle, Facebook, Send, Linkedin, Twitter } from 'lucide-react';
 import { buildShareTargets, copyText } from '../../lib/share';
 import { buildProductShareUrl, commissionFor, formatRupiah } from '../../lib/referral';
+import { useReferralContext } from '../../lib/ReferralContext';
 
 interface ProductShareMenuProps {
   productKey: string;
   productName: string;
   /** Harga jual setelah diskon (angka). Dipakai untuk menampilkan estimasi komisi. */
   price?: number;
-  /** Kode referral user login. null = belum login. */
+  /** Kode referral user login (null = belum login ATAU kode belum termuat). */
   referralCode: string | null;
+  /** true bila user sudah login. Dipakai supaya user login tidak diminta daftar lagi. */
+  isLoggedIn?: boolean;
+  /** true selama kode referral sedang dimuat. */
+  referralLoading?: boolean;
+  /** Muat ulang kode referral. */
+  onRetryReferral?: () => void;
   onRequireLogin: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   /** true untuk kartu berlatar gelap */
@@ -19,8 +26,13 @@ interface ProductShareMenuProps {
 const ICONS = { whatsapp: MessageCircle, facebook: Facebook, x: Twitter, telegram: Send, linkedin: Linkedin } as const;
 
 export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
-  productKey, productName, price, referralCode, onRequireLogin, showToast, dark,
+  productKey, productName, price, referralCode, isLoggedIn: isLoggedInProp, referralLoading: loadingProp,
+  onRetryReferral: retryProp, onRequireLogin, showToast, dark,
 }) => {
+  const ctx = useReferralContext();
+  const isLoggedIn = isLoggedInProp ?? ctx.isLoggedIn;
+  const referralLoading = loadingProp ?? ctx.loading;
+  const onRetryReferral = retryProp ?? ctx.retry;
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -46,7 +58,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
     : 'text-slate-600 hover:text-blue-700';
 
   // Belum login -> ajak daftar
-  if (!referralCode) {
+  if (!referralCode && !isLoggedIn) {
     return (
       <button
         type="button"
@@ -54,6 +66,20 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
         className={`w-full text-[11px] font-semibold underline-offset-2 hover:underline cursor-pointer ${btnBase}`}
       >
         Daftar untuk dapat komisi 30% dari setiap penjualan
+      </button>
+    );
+  }
+
+  // Sudah login tapi kode referral belum siap -> JANGAN minta daftar lagi
+  if (!referralCode) {
+    return (
+      <button
+        type="button"
+        disabled={referralLoading}
+        onClick={(e) => { e.stopPropagation(); onRetryReferral?.(); }}
+        className={`w-full text-[11px] font-semibold cursor-pointer disabled:cursor-wait disabled:opacity-70 ${btnBase}`}
+      >
+        {referralLoading ? 'Menyiapkan link referral…' : 'Link referral belum siap - ketuk untuk muat ulang'}
       </button>
     );
   }

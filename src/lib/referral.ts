@@ -62,24 +62,95 @@ export function buildProductShareUrl(productKey: string, code: string): string {
   return `${window.location.origin}/paket/${encodeURIComponent(productKey)}?ref=${encodeURIComponent(code)}`;
 }
 
-/** Ambil kode referral milik user yang sedang login. */
-export function useReferralCode(uid: string | null): string | null {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Ambil kode referral user. Kalau profil/kode belum ada (user lama, signup lewat
+ * Google, trigger terlambat), minta server membuatnya lewat RPC ensure_my_referral_code.
+ */
+async function loadOrCreateReferralCode(uid: string): Promise<string | null> {
+  if (!supabase) return null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('referral_code')
+      .eq('id', uid)
+      .maybeSingle();
+    if (data?.referral_code) return data.referral_code as string;
+
+    const { data: created, error } = await supabase.rpc('ensure_my_referral_code');
+    if (!error && typeof created === 'string' && created) return created;
+    if (error) console.warn('[referral] ensure_my_referral_code:', error.message);
+
+    await sleep(500 * (attempt + 1));
+  }
+  return null;
+}
+
+export interface ReferralState {
+  /** Kode referral user (null = belum siap / belum login). */
+  code: string | null;
+  /** true selama kode sedang dimuat. */
+  loading: boolean;
+  /** Coba muat ulang kode (dipakai tombol "Muat ulang"). */
+  retry: () => void;
+}
+
+/** Kode referral milik user yang sedang login, dengan status memuat & coba lagi. */
+export function useReferral(uid: string | null): ReferralState {
   const [code, setCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
+
   useEffect(() => {
     let alive = true;
     if (!uid || !isSupabaseConfigured || !supabase) {
       setCode(null);
+      setLoading(false);
       return;
     }
-    supabase
-      .from('profiles')
-      .select('referral_code')
-      .eq('id', uid)
-      .maybeSingle()
-      .then(({ data }) => { if (alive) setCode((data?.referral_code as string) || null); });
+    setLoading(true);
+    loadOrCreateReferralCode(uid)
+      .then((c) => { if (alive) setCode(c); })
+      .catch((e) => console.error('[useReferral]', e))
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [uid]);
-  return code;
+  }, [uid, tick]);
+
+  return { code, loading, retry: () => setTick((t) => t + 1) };
+}
+
+/** Kompatibilitas lama: hanya mengembalikan kodenya. */
+export function useReferralCode(uid: string | null): string | null {
+  return useReferral(uid).code;
+}
+
+export interface ReferralStats {
+  referredOrders: number;
+  paidOrders: number;
+}
+
+export async function fetchMyReferralStats(): Promise<ReferralStats | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  const { data, error } = await supabase.rpc('my_referral_stats');
+  if (error) {
+    console.warn('[fetchMyReferralStats]', error.message);
+    return null;
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as { referred_orders?: number; paid_orders?: number } | null;
+  return {
+    referredOrders: Number(row?.referred_orders || 0),
+    paidOrders: Number(row?.paid_orders || 0),
+  };
+}
+
+/** Ringkasan pendapatan afiliasi dari daftar komisi. Komisi 'cancelled' tidak dihitung. */
+export function summarizeCommissions(rows: { amount: number; status: string }[]) {
+  const sum = (s: string) => rows.filter((r) => r.status === s).reduce((a, r) => a + Number(r.amount), 0);
+  const pending = sum('pending');
+  const approved = sum('approved');
+  const paid = sum('paid');
+  return { pending, approved, paid, total: pending + approved + paid };
 }
 
 export interface CommissionRow {
@@ -94,9 +165,14 @@ export interface CommissionRow {
 
 export async function fetchMyCommissions(): Promise<CommissionRow[]> {
   if (!isSupabaseConfigured || !supabase) return [];
+  // Admin bisa membaca semua komisi lewat RLS; di dashboard tampilkan hanya milik sendiri.
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return [];
   const { data, error } = await supabase
     .from('commissions')
     .select('id, order_id, base_amount, rate, amount, status, created_at')
+    .eq('referrer_id', uid)
     .order('created_at', { ascending: false });
   if (error) {
     console.error('[fetchMyCommissions]', error);

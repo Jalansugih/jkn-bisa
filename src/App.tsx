@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { OrderItem, ToastMessage, RfqFormData, AuthUser, Product, Article } from './types';
 import { subscribeToAuthChanges, logout, consumeAuthRedirectError } from './lib/authService';
 import { createOrder, subscribeToMyOrders } from './lib/orderService';
-import { captureReferralFromUrl, useReferralCode } from './lib/referral';
+import { captureReferralFromUrl, useReferral } from './lib/referral';
+import { ReferralContext } from './lib/ReferralContext';
 import { subscribeToProducts } from './lib/productService';
 import { subscribeToArticles } from './lib/articleService';
 import { ARTICLES_DATA } from './data/mockData';
@@ -91,7 +92,7 @@ export const App: React.FC = () => {
   // Authenticated user state, synced in real time from Supabase Auth (see useEffect below)
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authUid, setAuthUid] = useState<string | null>(null);
-  const referralCode = useReferralCode(authUid);
+  const { code: referralCode, loading: referralLoading, retry: retryReferral } = useReferral(authUid);
 
   useEffect(() => {
     const unsubscribe = subscribeToAuthChanges((user) => {
@@ -299,6 +300,12 @@ export const App: React.FC = () => {
   };
 
   const handleRequireLogin = () => {
+    // User yang sudah login tidak boleh diminta daftar lagi
+    if (authUid) {
+      retryReferral();
+      showToast('Anda sudah masuk. Link referral sedang disiapkan.', 'info');
+      return;
+    }
     setAuthModalMode('register');
     setIsAuthModalOpen(true);
   };
@@ -451,6 +458,7 @@ export const App: React.FC = () => {
   };
 
   return (
+    <ReferralContext.Provider value={{ isLoggedIn: Boolean(authUid), loading: referralLoading, retry: retryReferral }}>
     <div className="min-h-screen bg-slate-50/60 text-slate-800 font-sans antialiased selection:bg-blue-600 selection:text-white flex flex-col justify-between">
       {/* Top Banner */}
       {currentView !== 'admin' && (
@@ -522,6 +530,8 @@ export const App: React.FC = () => {
             }
             orders={orders}
             referralCode={referralCode}
+            referralLoading={referralLoading}
+            onRetryReferral={retryReferral}
             onGoHome={() => navigateAppPath('/')}
             onOpenOrder={(serviceId) => {
               if (serviceId) {
@@ -848,6 +858,7 @@ export const App: React.FC = () => {
         onSuccess={(message) => showToast(message, 'success')}
       />
     </div>
+    </ReferralContext.Provider>
   );
 };
 

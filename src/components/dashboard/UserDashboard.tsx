@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import DashboardHeader from './DashboardHeader';
 import DashboardStats from './DashboardStats';
 import OrderStatusBadge from './OrderStatusBadge';
 import { OrderItem } from '../../types';
 import { ReferralPanel } from './ReferralPanel';
+import {
+  CommissionRow, ReferralStats, fetchMyCommissions, fetchMyReferralStats, summarizeCommissions, formatRupiah,
+} from '../../lib/referral';
 import { ShoppingBag, MessageSquare, Search, Receipt, ArrowRight } from 'lucide-react';
 
 interface UserDashboardProps {
@@ -20,6 +23,8 @@ interface UserDashboardProps {
   onOpenTracker?: () => void;
   onSelectOrderInvoice?: (order: OrderItem) => void;
   referralCode?: string | null;
+  referralLoading?: boolean;
+  onRetryReferral?: () => void;
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({
@@ -30,7 +35,35 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenTracker,
   onSelectOrderInvoice,
   referralCode,
+  referralLoading,
+  onRetryReferral,
 }) => {
+  // ==============================
+  // PENDAPATAN AFILIASI
+  // ==============================
+  const [commissions, setCommissions] = useState<CommissionRow[]>([]);
+  const [commissionsLoading, setCommissionsLoading] = useState(true);
+  const [refStats, setRefStats] = useState<ReferralStats | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setCommissionsLoading(true);
+    Promise.all([fetchMyCommissions(), fetchMyReferralStats()]).then(([rows, stats]) => {
+      if (!alive) return;
+      setCommissions(rows);
+      setRefStats(stats);
+      setCommissionsLoading(false);
+    });
+    return () => { alive = false; };
+  }, [referralCode]);
+
+  const affiliate = useMemo(() => summarizeCommissions(commissions), [commissions]);
+
+  const handleAskPayout = () => {
+    const text = `Halo CS BinaUsaha, saya ingin mengajukan pencairan komisi afiliasi sebesar ${formatRupiah(affiliate.approved)}.\nKode referral: ${referralCode || '-'}\nNama: ${user?.displayName || '-'}\nEmail: ${user?.email || '-'}`;
+    window.open(`https://wa.me/6285195979888?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   // ==============================
   // STATISTIK PESANAN
   // ==============================
@@ -75,9 +108,21 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
           totalOrders={totalOrders}
           processingOrders={processingOrders}
           completedOrders={completedOrders}
+          affiliateIncome={affiliate.total}
+          affiliateWithdrawable={affiliate.approved}
         />
 
-        <ReferralPanel referralCode={referralCode ?? null} />
+        <ReferralPanel
+          referralCode={referralCode ?? null}
+          referralLoading={referralLoading}
+          onRetryReferral={onRetryReferral}
+          rows={commissions}
+          totals={affiliate}
+          stats={refStats}
+          commissionsLoading={commissionsLoading}
+          onShopNow={onGoHome}
+          onAskPayout={handleAskPayout}
+        />
 
         {/* ==============================
             PESANAN SAYA

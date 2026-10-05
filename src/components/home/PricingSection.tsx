@@ -5,11 +5,12 @@ import { ProductShareMenu } from '../common/ProductShareMenu';
 interface PricingSectionProps {
   onSelectProduct: (prodKey: string) => void;
   referralCode: string | null;
+  loggedIn?: boolean;
   onRequireLogin: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
-export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct, referralCode, onRequireLogin, showToast }) => {
+export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct, referralCode, loggedIn, onRequireLogin, showToast }) => {
   return (
     <section className="py-20 bg-white border-t border-slate-200" id="harga">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -79,7 +80,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct,
               <ArrowRight className="w-4 h-4" />
             </button>
             <div className="mt-3">
-              <ProductShareMenu productKey="rajakas_pos" productName="RajaKas POS Digital" price={1118600} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
+              <ProductShareMenu productKey="rajakas_pos" productName="RajaKas POS Digital" price={1118600} referralCode={referralCode} loggedIn={loggedIn} onRequireLogin={onRequireLogin} showToast={showToast} />
             </div>
           </div>
 
@@ -140,7 +141,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct,
               <ArrowRight className="w-4 h-4" />
             </button>
             <div className="mt-3">
-              <ProductShareMenu dark productKey="website_pro" productName="Website UMKM Pro + POS" price={3147900} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
+              <ProductShareMenu dark productKey="website_pro" productName="Website UMKM Pro + POS" price={3147900} referralCode={referralCode} loggedIn={loggedIn} onRequireLogin={onRequireLogin} showToast={showToast} />
             </div>
           </div>
 
@@ -197,7 +198,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct,
               <ArrowRight className="w-4 h-4" />
             </button>
             <div className="mt-3">
-              <ProductShareMenu productKey="pt_pro" productName="Paket PT Pro" price={5498600} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
+              <ProductShareMenu productKey="pt_pro" productName="Paket PT Pro" price={5498600} referralCode={referralCode} loggedIn={loggedIn} onRequireLogin={onRequireLogin} showToast={showToast} />
             </div>
           </div>
         </div>
