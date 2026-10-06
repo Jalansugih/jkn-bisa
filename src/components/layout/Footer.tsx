@@ -167,7 +167,7 @@ export const Footer: React.FC<FooterProps> = ({
               <div className="flex items-center gap-3">
                 {/* Instagram */}
                 <a
-                  href="https://instagram.com"
+                  href="https://www.instagram.com/binausaha_com?stkn=MWliZTgxdDZzcmV2cg=="
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Instagram BinaUsaha"
@@ -180,7 +180,7 @@ export const Footer: React.FC<FooterProps> = ({
 
                 {/* YouTube */}
                 <a
-                  href="https://youtube.com"
+                  href="https://www.youtube.com/@jalansugih_id"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="YouTube BinaUsaha"
@@ -193,7 +193,7 @@ export const Footer: React.FC<FooterProps> = ({
 
                 {/* TikTok */}
                 <a
-                  href="https://tiktok.com"
+                  href="https://www.tiktok.com/@jalansugih.id?_r=1&_t=ZS-9AJo6gGuQH1"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="TikTok BinaUsaha"
@@ -256,7 +256,7 @@ export const Footer: React.FC<FooterProps> = ({
               >
                 <Lock className="w-3.5 h-3.5" /> Kebijakan Privasi
               </a>
-              
+
             </div>
           </div>
         </div>
