@@ -251,6 +251,8 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
                   <ShareMenu
                     title={article.title}
                     slug={articleSlugValue}
+                    image={article.image}
+                    excerpt={article.excerpt}
                     showToast={showToast}
                   />
 

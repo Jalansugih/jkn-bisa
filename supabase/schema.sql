@@ -3,6 +3,16 @@
 -- =====================================================================
 -- Cara pakai: buka Supabase Dashboard -> SQL Editor -> paste semua isi
 -- file ini -> Run. Aman dijalankan sekali di project baru yang kosong.
+--
+-- SUMBER KEBENARAN SKEMA = file ini + semua file di supabase/migrations/
+-- (dijalankan BERURUTAN sesuai nama file, dari yang terkecil).
+--   * Project BARU      : jalankan schema.sql, lalu semua migrations urut.
+--   * Project LAMA      : jalankan hanya migration yang belum pernah dijalankan.
+--   * Perubahan skema berikutnya: SELALU lewat file migration baru
+--     (YYYYMMDDHHMMSS_nama.sql). Jangan edit skema di tempat lain
+--     (dulu ada src/lib/supabase/schema.sql dengan kolom `wa` -> sudah dihapus).
+-- Nama kolom nomor WhatsApp di database = `whatsapp` (bukan `wa`).
+-- Field `wa` hanya nama properti di sisi UI (lihat rowToOrderItem di orderService.ts).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -30,6 +40,13 @@ create table if not exists public.profiles (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+
+-- Kolom tambahan dari migrations (idempoten, aman diulang):
+--   20260930000200_referral_commission.sql, 20261006000300_commission_payouts.sql
+alter table public.profiles add column if not exists referral_code         text;
+alter table public.profiles add column if not exists payout_bank_name      text;
+alter table public.profiles add column if not exists payout_account_number text;
+alter table public.profiles add column if not exists payout_account_name   text;
 
 -- Helper: apakah user yang sedang login adalah admin?
 -- security definer supaya bisa membaca profiles tanpa terjebak RLS-nya sendiri.
@@ -130,6 +147,14 @@ create table if not exists public.orders (
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
+
+-- Kolom tambahan dari migrations (idempoten, aman diulang):
+--   20260930000200_referral_commission.sql
+alter table public.orders add column if not exists referred_by_code text;
+alter table public.orders add column if not exists referred_by      uuid references public.profiles(id) on delete set null;
+
+create index if not exists idx_orders_whatsapp on public.orders(whatsapp);
+create index if not exists idx_orders_uid      on public.orders(uid);
 
 alter table public.orders enable row level security;
 
@@ -258,8 +283,12 @@ create table if not exists public.products (
   updated_at     timestamptz not null default now()
 );
 
--- Untuk database yang sudah ada: kolom foto produk (lihat migrations/2026-10-03_product_images.sql)
+-- Untuk database yang sudah ada: kolom foto produk (lihat migrations/20261003000100_product_images.sql)
 alter table public.products add column if not exists image_url text;
+
+-- Komisi per produk (lihat migrations/20261006000200_product_commission.sql)
+alter table public.products add column if not exists commission_type  text    not null default 'default';
+alter table public.products add column if not exists commission_value numeric not null default 0;
 
 alter table public.products enable row level security;
 
@@ -367,3 +396,7 @@ create trigger trg_profiles_updated_at before update on public.profiles
 -- Setelah admin pertama aktif, gunakan menu Admin -> Pengguna -> Jadikan Admin
 -- untuk mengangkat akun berikutnya. RLS hanya mengizinkan admin mengubah role.
 -- =====================================================================
+
+-- Refresh cache schema PostgREST supaya kolom baru langsung dikenali API
+-- (mencegah error PGRST204 "column not found in the schema cache").
+notify pgrst, 'reload schema';

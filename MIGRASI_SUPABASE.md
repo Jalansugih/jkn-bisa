@@ -117,3 +117,57 @@ sama persis**, jadi tidak ada komponen `.tsx` lain yang perlu diubah selain
 - [ ] Coba checkout 1 order tamu (tanpa login) → cek masuk ke tabel `orders`
 - [ ] Login sebagai admin → cek dashboard admin bisa lihat semua order/user
 - [ ] Login sebagai customer biasa → pastikan **tidak bisa** akses `/admin`
+
+
+---
+
+## Sumber kebenaran skema database
+
+Skema database hanya didefinisikan di dua tempat, dan tidak boleh ada yang lain:
+
+1. `supabase/schema.sql` — kondisi dasar tabel.
+2. `supabase/migrations/*.sql` — perubahan berikutnya, dijalankan **berurutan sesuai nama file**.
+
+Format nama migration baru: `YYYYMMDDHHMMSS_nama_singkat.sql`.
+
+- **Project baru:** jalankan `schema.sql`, lalu semua file di `migrations/` dari yang terkecil.
+- **Project lama:** jalankan hanya migration yang belum pernah dijalankan.
+- Setelah migration yang mengubah kolom/tabel, jalankan `notify pgrst, 'reload schema';`
+  (atau file `20261006000400_reload_schema_cache.sql`) agar tidak muncul error `PGRST204`.
+
+Catatan penamaan kolom: nomor WhatsApp di database = `whatsapp`. Properti `wa` hanya
+ada di sisi UI (`OrderItem.wa`) dan dipetakan di `src/lib/orderService.ts`.
+
+## Cara mengambil dump skema dari database produksi
+
+Dump skema **tidak berisi data pelanggan**, hanya struktur tabel, fungsi, trigger, dan policy.
+Jangan pernah membagikan password database atau connection string yang berisi password.
+
+**Opsi A — Supabase CLI** (butuh Docker berjalan):
+
+    supabase login
+    supabase link --project-ref <PROJECT_REF>
+    supabase db dump --schema public -f schema_dump.sql
+
+`<PROJECT_REF>` ada di Dashboard → Project Settings → General (Reference ID).
+
+**Opsi B — pg_dump langsung** (butuh PostgreSQL client terpasang):
+
+    pg_dump --schema-only --schema=public --no-owner --no-privileges \
+      "<CONNECTION_STRING>" > schema_dump.sql
+
+Connection string: Dashboard → Project Settings → Database → Connection string
+(ganti `[YOUR-PASSWORD]` dengan password database Anda).
+
+**Opsi C — tanpa install apa pun:** di Dashboard → SQL Editor, jalankan query ini lalu export hasilnya (CSV):
+
+    select table_name, column_name, data_type, is_nullable, column_default
+    from information_schema.columns
+    where table_schema = 'public'
+    order by table_name, ordinal_position;
+
+Untuk memastikan kolom `orders` di produksi sudah benar:
+
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'orders'
+    order by ordinal_position;

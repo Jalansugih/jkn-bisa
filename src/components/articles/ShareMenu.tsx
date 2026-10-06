@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Share2, Copy, Check, MessageCircle, Facebook, Send, Linkedin, Twitter } from 'lucide-react';
-import { articleShareUrl, buildShareTargets, copyText } from '../../lib/share';
+import { articleShareUrl, buildShareTargets, buildShareText, copyText, fetchImageFile } from '../../lib/share';
 
 interface ShareMenuProps {
   title: string;
   slug: string;
+  /** Foto & cuplikan artikel: dipakai agar hasil share = foto, teks, lalu link */
+  image?: string;
+  excerpt?: string;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   /** 'button' = tombol dengan teks (halaman artikel), 'icon' = tombol bulat kecil (kartu) */
   variant?: 'button' | 'icon';
@@ -18,10 +21,17 @@ const ICONS = {
   linkedin: Linkedin,
 } as const;
 
-export const ShareMenu: React.FC<ShareMenuProps> = ({ title, slug, showToast, variant = 'button' }) => {
+export const ShareMenu: React.FC<ShareMenuProps> = ({ title, slug, image, excerpt, showToast, variant = 'button' }) => {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<Promise<File | null> | null>(null);
+
+  // Unduh foto lebih awal supaya menu share HP tetap terbuka tepat setelah tombol diketuk.
+  const preloadImage = () => {
+    if (!imageRef.current) imageRef.current = fetchImageFile(image, slug);
+    return imageRef.current;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -42,11 +52,18 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({ title, slug, showToast, va
   const handleMainClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const url = articleShareUrl(slug);
+    const text = buildShareText(title, excerpt, url);
     // Di HP, pakai menu share bawaan (WA, IG, FB, dll langsung tersedia).
     const isTouch = window.matchMedia?.('(pointer: coarse)').matches;
     if (isTouch && typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title, text: title, url });
+        const file = await preloadImage();
+        // Foto di atas, lalu judul + cuplikan, link di paling bawah (semua dalam satu pesan).
+        if (file && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title, text });
+        } else {
+          await navigator.share({ title, text });
+        }
         return;
       } catch (err) {
         if ((err as DOMException)?.name === 'AbortError') return; // pengguna menutup dialog
@@ -68,10 +85,16 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({ title, slug, showToast, va
     setOpen(false);
   };
 
-  const targets = open ? buildShareTargets(title, articleShareUrl(slug)) : [];
+  const targets = open ? buildShareTargets(title, articleShareUrl(slug), buildShareText(title, excerpt, articleShareUrl(slug))) : [];
 
   return (
-    <div className="relative" ref={ref} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="relative"
+      ref={ref}
+      onClick={(e) => e.stopPropagation()}
+      onPointerEnter={preloadImage}
+      onTouchStart={preloadImage}
+    >
       {variant === 'icon' ? (
         <button
           onClick={handleMainClick}

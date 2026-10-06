@@ -18,4 +18,4 @@ Jangan commit `.env.local`.
 Masuk sebagai admin -> Admin -> Pengguna -> `Jadikan Admin`.
 
 ## Database yang sudah lama
-Jalankan migration `supabase/migrations/2026-09-26_fix_admin_identity.sql`.
+Jalankan migration `supabase/migrations/20260926000100_fix_admin_identity.sql`.

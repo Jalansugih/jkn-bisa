@@ -74,7 +74,7 @@ function productToRow(product: Partial<Product>): Record<string, unknown> {
 /** Pesan error yang menunjuk migrasi SQL bila kolom komisi belum ada di database. */
 function dbErrorMessage(prefix: string, message: string): string {
   if (/commission_(type|value)/i.test(message)) {
-    return `${prefix}: kolom komisi belum ada di database. Jalankan migrasi 2026-10-06_product_commission.sql di Supabase SQL Editor.`;
+    return `${prefix}: kolom komisi belum ada di database. Jalankan migrasi 20261006000200_product_commission.sql di Supabase SQL Editor.`;
   }
   return `${prefix}: ${message}`;
 }

@@ -12,7 +12,7 @@
 5. Urutan "terbaru" diperbaiki (sebelumnya selalu sama karena membaca format tanggal Firestore lama).
 
 ## Langkah wajib setelah deploy
-1. Supabase → SQL Editor → jalankan `supabase/migrations/2026-09-29_article_views.sql` (sekali saja).
+1. Supabase → SQL Editor → jalankan `supabase/migrations/20260929000100_article_views.sql` (sekali saja).
 2. Deploy ulang ke Vercel. Pastikan env `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` terisi
    (fungsi `api/artikel.ts` memakai keduanya).
 3. Uji link di https://developers.facebook.com/tools/debug/ (klik "Scrape Again" bila cache lama).

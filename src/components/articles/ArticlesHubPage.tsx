@@ -540,6 +540,8 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
                         variant="icon"
                         title={article.title}
                         slug={article.slug || slugify(article.title)}
+                        image={article.image}
+                        excerpt={article.excerpt}
                         showToast={showToast}
                       />
                       <button

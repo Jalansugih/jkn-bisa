@@ -125,7 +125,7 @@ function todayKey(): string {
 
 /**
  * Catat 1 pembaca untuk artikel. Server yang menjaga agar satu pengunjung
- * hanya dihitung 1x per artikel per hari (lihat migrasi 2026-09-29_article_views.sql).
+ * hanya dihitung 1x per artikel per hari (lihat migrasi 20260929000100_article_views.sql).
  * Mengembalikan jumlah pembaca terbaru, atau null bila tidak dihitung / gagal.
  */
 export async function trackArticleView(articleId: string): Promise<number | null> {
