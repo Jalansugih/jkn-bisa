@@ -21,6 +21,8 @@ interface ProductRow {
   image_url: string | null;
   popular: boolean | null;
   active: boolean | null;
+  commission_type: Product['commissionType'] | null;
+  commission_value: number | null;
 }
 
 function rowToProduct(row: ProductRow): Product {
@@ -41,6 +43,8 @@ function rowToProduct(row: ProductRow): Product {
     imageUrl: row.image_url || undefined,
     popular: Boolean(row.popular),
     active: row.active !== false,
+    commissionType: row.commission_type || 'default',
+    commissionValue: row.commission_value != null ? Number(row.commission_value) : 0,
   };
 }
 
@@ -62,7 +66,17 @@ function productToRow(product: Partial<Product>): Record<string, unknown> {
   if ('imageUrl' in product) row.image_url = product.imageUrl || null;
   if (product.popular !== undefined) row.popular = product.popular;
   if (product.active !== undefined) row.active = product.active;
+  if (product.commissionType !== undefined) row.commission_type = product.commissionType;
+  if (product.commissionValue !== undefined) row.commission_value = product.commissionValue;
   return row;
+}
+
+/** Pesan error yang menunjuk migrasi SQL bila kolom komisi belum ada di database. */
+function dbErrorMessage(prefix: string, message: string): string {
+  if (/commission_(type|value)/i.test(message)) {
+    return `${prefix}: kolom komisi belum ada di database. Jalankan migrasi 2026-10-06_product_commission.sql di Supabase SQL Editor.`;
+  }
+  return `${prefix}: ${message}`;
 }
 
 function getLocalProducts(): Product[] {
@@ -164,7 +178,7 @@ export async function addProduct(product: Product): Promise<void> {
       id: normalizedId,
       ...productToRow({ ...productData, active: productData.active !== false }),
     });
-    if (error) throw new Error(`Gagal menambah produk: ${error.message}`);
+    if (error) throw new Error(dbErrorMessage('Gagal menambah produk', error.message));
   }
 
   const localList = getLocalProducts().filter((p) => p.id !== normalizedId);
@@ -178,7 +192,7 @@ export async function addProduct(product: Product): Promise<void> {
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<void> {
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase.from('products').update(productToRow(updates)).eq('id', id);
-    if (error) throw new Error(`Gagal memperbarui produk: ${error.message}`);
+    if (error) throw new Error(dbErrorMessage('Gagal memperbarui produk', error.message));
   }
 
   const localList = getLocalProducts().map((p) => (p.id === id ? { ...p, ...updates } : p));

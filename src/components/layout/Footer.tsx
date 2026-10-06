@@ -256,14 +256,7 @@ export const Footer: React.FC<FooterProps> = ({
               >
                 <Lock className="w-3.5 h-3.5" /> Kebijakan Privasi
               </a>
-              {onOpenAdmin && (
-                <button
-                  onClick={onOpenAdmin}
-                  className="text-slate-500 hover:text-amber-400 hover:underline transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500" /> Panel Admin
-                </button>
-              )}
+              
             </div>
           </div>
         </div>

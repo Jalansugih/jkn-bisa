@@ -8,6 +8,7 @@ import {
   adminSetCommissionStatus,
 } from '../../lib/commissionService';
 import { formatRupiah } from '../../lib/referral';
+import { adminSetCommissionRate, useCommissionRate } from '../../lib/commissionRate';
 
 interface Props {
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
@@ -34,6 +35,29 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | CommissionStatus>('all');
   const [query, setQuery] = useState('');
+  const currentRate = useCommissionRate();
+  const [rateInput, setRateInput] = useState('');
+  const [savingRate, setSavingRate] = useState(false);
+
+  useEffect(() => { setRateInput(String(Number((currentRate * 100).toFixed(1)))); }, [currentRate]);
+
+  const saveRate = async () => {
+    const pct = Number(rateInput.replace(',', '.'));
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      showToast('Isi tarif antara 0 sampai 100.', 'warning');
+      return;
+    }
+    if (!confirm(`Ubah tarif komisi menjadi ${pct}%?\n\nHanya berlaku untuk pesanan yang dilunasi setelah ini. Komisi yang sudah tercatat tidak berubah.`)) return;
+    setSavingRate(true);
+    try {
+      await adminSetCommissionRate(pct);
+      showToast(`Tarif komisi sekarang ${pct}%.`, 'success');
+    } catch (e: any) {
+      showToast(e.message || 'Gagal menyimpan tarif.', 'error');
+    } finally {
+      setSavingRate(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,6 +165,35 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
         </div>
       </div>
 
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <h3 className="text-sm font-heading font-extrabold text-slate-900">Tarif Komisi Umum (default)</h3>
+        <p className="text-xs text-slate-500 mt-0.5 mb-3">
+          Dipakai oleh produk yang tidak punya aturan komisi sendiri. Komisi khusus (persentase atau nominal tetap) diatur per produk di menu Produk. Perubahan hanya berlaku untuk pesanan yang dilunasi setelahnya; komisi yang sudah tercatat tidak berubah.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-28">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={rateInput}
+              onChange={(e) => setRateInput(e.target.value)}
+              className="w-full pl-3 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+          </div>
+          <button
+            onClick={saveRate}
+            disabled={savingRate || Number(rateInput) === Number((currentRate * 100).toFixed(1))}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold cursor-pointer"
+          >
+            {savingRate ? 'Menyimpan...' : 'Simpan tarif'}
+          </button>
+          <span className="text-[11px] text-slate-500">Saat ini: <strong>{Number((currentRate * 100).toFixed(1))}%</strong></span>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
@@ -172,7 +225,14 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
                       <div className="text-[11px] text-slate-500">{r.order?.product || '-'} · {r.order?.name || '-'}</div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap text-slate-600">
-                      {formatRupiah(r.base_amount)} x {Math.round(r.rate * 100)}%
+                      {r.commission_type === 'fixed'
+                        ? `Nominal tetap (paket ${formatRupiah(r.base_amount)})`
+                        : `${formatRupiah(r.base_amount)} x ${Number((r.rate * 100).toFixed(2))}%`}
+                      {r.price_verified === false && (
+                        <div className="mt-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 inline-block">
+                          Harga belum terverifikasi - cek manual
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap font-extrabold text-slate-900">{formatRupiah(r.amount)}</td>
                     <td className="px-5 py-4">
@@ -186,7 +246,15 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
                       ) : (
                         <>
                           {r.status === 'pending' && (
-                            <button onClick={() => setStatus(r, 'approved')} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer">Setujui</button>
+                            <button onClick={() =>
+                              setStatus(
+                                r,
+                                'approved',
+                                r.price_verified === false
+                                  ? 'Harga komisi ini belum terverifikasi dari katalog produk. Setujui tetap?'
+                                  : undefined
+                              )
+                            } className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer">Setujui</button>
                           )}
                           {r.status === 'approved' && (
                             <button

@@ -35,10 +35,24 @@ interface ProductsSectionProps {
   onSelectProductOrder: (prodKey: string) => void;
   onAskWhatsapp: (prodName: string) => void;
   referralCode: string | null;
-  loggedIn?: boolean;
   onRequireLogin: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
+
+
+/** Foto produk di kartu. Kegagalan memuat dilaporkan ke induk agar kartu kembali memakai ikon. */
+const ProductImage: React.FC<{ src: string; alt: string; onError: () => void }> = ({ src, alt, onError }) => (
+  <div className="aspect-[16/9] w-full overflow-hidden bg-slate-100 border-b border-slate-100">
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={onError}
+      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+    />
+  </div>
+);
 
 export const ProductsSection: React.FC<ProductsSectionProps> = ({
   products: propProducts,
@@ -48,11 +62,12 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
   onSelectProductOrder,
   onAskWhatsapp,
   referralCode,
-  loggedIn,
   onRequireLogin,
   showToast,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
+  // id produk yang URL fotonya gagal dimuat -> tampilkan ikon sebagai cadangan
+  const [brokenImages, setBrokenImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (initialCategory) {
@@ -295,6 +310,8 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
             const isPtPro = product.id === 'pt_pro';
             const isBundling = product.id === 'bundling_allinone';
             const isLegalitas = product.category === 'legalitas';
+            // simpan URL yang rusak (bukan hanya id) supaya foto baru dari admin langsung dicoba lagi
+            const showImage = Boolean(product.imageUrl) && brokenImages[product.id] !== product.imageUrl;
 
             return (
               <div
@@ -338,15 +355,28 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                   </div>
                 )}
 
+                {/* Foto produk (jika admin sudah mengunggah) */}
+                {showImage && (
+                  <ProductImage
+                    src={product.imageUrl as string}
+                    alt={product.name}
+                    onError={() =>
+                      setBrokenImages((prev) => ({ ...prev, [product.id]: product.imageUrl as string }))
+                    }
+                  />
+                )}
+
                 {/* Card Header */}
                 <div className={`p-6 border-b border-slate-100 ${getHeaderGradient(product)}`}>
-                  <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-xs ${getIconColor(
-                      product
-                    )}`}
-                  >
-                    {getProductIcon(product.iconName)}
-                  </div>
+                  {!showImage && (
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-xs ${getIconColor(
+                        product
+                      )}`}
+                    >
+                      {getProductIcon(product.iconName)}
+                    </div>
+                  )}
                   <h3 className="font-heading font-bold text-xl text-slate-900 mb-1">{product.name}</h3>
 
                   {isPtPro ? (
@@ -432,7 +462,9 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                       productKey={product.id}
                       productName={product.name}
                       price={product.price}
-                      referralCode={referralCode} loggedIn={loggedIn}
+                      commissionType={product.commissionType}
+                      commissionValue={product.commissionValue}
+                      referralCode={referralCode}
                       onRequireLogin={onRequireLogin}
                       showToast={showToast}
                     />

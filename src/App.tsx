@@ -729,6 +729,7 @@ export const App: React.FC = () => {
             {/* 9. Pricing Tiers Section */}
             <PricingSection
               onSelectProduct={handleOpenOrder}
+              products={products}
               referralCode={referralCode}
               onRequireLogin={handleRequireLogin}
               showToast={showToast}

@@ -1,16 +1,21 @@
 import React from 'react';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 import { ProductShareMenu } from '../common/ProductShareMenu';
+import { Product } from '../../types';
 
 interface PricingSectionProps {
   onSelectProduct: (prodKey: string) => void;
   referralCode: string | null;
-  loggedIn?: boolean;
+  /** Katalog live dari database; dipakai agar estimasi komisi mengikuti harga yang diatur admin. */
+  products?: Product[];
   onRequireLogin: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
-export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct, referralCode, loggedIn, onRequireLogin, showToast }) => {
+export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct, referralCode, products, onRequireLogin, showToast }) => {
+  const find = (id: string) => products?.find((p) => p.id === id);
+  const livePrice = (id: string, fallback: number) => find(id)?.price ?? fallback;
+
   return (
     <section className="py-20 bg-white border-t border-slate-200" id="harga">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -80,7 +85,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct,
               <ArrowRight className="w-4 h-4" />
             </button>
             <div className="mt-3">
-              <ProductShareMenu productKey="rajakas_pos" productName="RajaKas POS Digital" price={1118600} referralCode={referralCode} loggedIn={loggedIn} onRequireLogin={onRequireLogin} showToast={showToast} />
+              <ProductShareMenu productKey="rajakas_pos" productName="RajaKas POS Digital" price={livePrice('rajakas_pos', 1118600)} commissionType={find('rajakas_pos')?.commissionType} commissionValue={find('rajakas_pos')?.commissionValue} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
             </div>
           </div>
 
@@ -141,7 +146,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct,
               <ArrowRight className="w-4 h-4" />
             </button>
             <div className="mt-3">
-              <ProductShareMenu dark productKey="website_pro" productName="Website UMKM Pro + POS" price={3147900} referralCode={referralCode} loggedIn={loggedIn} onRequireLogin={onRequireLogin} showToast={showToast} />
+              <ProductShareMenu dark productKey="website_pro" productName="Website UMKM Pro + POS" price={livePrice('website_pro', 3147900)} commissionType={find('website_pro')?.commissionType} commissionValue={find('website_pro')?.commissionValue} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
             </div>
           </div>
 
@@ -198,7 +203,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectProduct,
               <ArrowRight className="w-4 h-4" />
             </button>
             <div className="mt-3">
-              <ProductShareMenu productKey="pt_pro" productName="Paket PT Pro" price={5498600} referralCode={referralCode} loggedIn={loggedIn} onRequireLogin={onRequireLogin} showToast={showToast} />
+              <ProductShareMenu productKey="pt_pro" productName="Paket PT Pro" price={livePrice('pt_pro', 5498600)} commissionType={find('pt_pro')?.commissionType} commissionValue={find('pt_pro')?.commissionValue} referralCode={referralCode} onRequireLogin={onRequireLogin} showToast={showToast} />
             </div>
           </div>
         </div>

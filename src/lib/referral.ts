@@ -1,14 +1,46 @@
 import { useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
 
-export const COMMISSION_RATE = 0.3; // harus sama dengan v_rate di SQL (SQL yang menentukan nilai sebenarnya)
+// Tarif sebenarnya diatur admin (tabel app_settings) dan dibaca lewat useCommissionRate().
+// Konstanta ini hanya cadangan tampilan; server yang menentukan nilai komisi.
+export { DEFAULT_COMMISSION_RATE as COMMISSION_RATE } from './commissionRate';
+import { DEFAULT_COMMISSION_RATE } from './commissionRate';
 
 const KEY = 'bu_ref_v1';
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
 
-/** Komisi = harga jual (setelah diskon) x 30%. Contoh: 800.000 -> 240.000 */
-export function commissionFor(sellingPrice: number): number {
-  return Math.floor(sellingPrice * COMMISSION_RATE);
+export type CommissionType = 'default' | 'percent' | 'fixed';
+
+/** Aturan komisi sebuah produk (dari kolom commission_type / commission_value). */
+export interface CommissionConfig {
+  commissionType?: CommissionType;
+  commissionValue?: number;
+}
+
+/**
+ * Estimasi komisi untuk satu produk. Rumus sama dengan fungsi calc_commission di SQL
+ * (server yang menentukan nilai sebenarnya):
+ *  - fixed   : nominal tetap, maksimal sebesar harga paket
+ *  - percent : harga jual x persen produk
+ *  - default : harga jual x tarif umum (diatur admin)
+ */
+export function commissionFor(
+  sellingPrice: number,
+  cfg?: CommissionConfig,
+  defaultRate: number = DEFAULT_COMMISSION_RATE
+): number {
+  const value = Number(cfg?.commissionValue) || 0;
+  if (cfg?.commissionType === 'fixed') return Math.min(Math.floor(value), Math.floor(sellingPrice));
+  if (cfg?.commissionType === 'percent') return Math.floor((sellingPrice * value) / 100);
+  return Math.floor(sellingPrice * defaultRate);
+}
+
+/** Teks singkat aturan komisi: "25%" atau "Rp 200.000". */
+export function commissionPhrase(cfg: CommissionConfig | undefined, defaultRate: number): string {
+  const value = Number(cfg?.commissionValue) || 0;
+  if (cfg?.commissionType === 'fixed') return formatRupiah(value);
+  if (cfg?.commissionType === 'percent') return `${Number(value.toFixed(2))}%`;
+  return `${Number((defaultRate * 100).toFixed(1))}%`;
 }
 
 export function formatRupiah(n: number): string {
@@ -161,6 +193,8 @@ export interface CommissionRow {
   amount: number;
   status: 'pending' | 'approved' | 'paid' | 'cancelled';
   created_at: string;
+  /** 'fixed' = nominal tetap per produk; selain itu = persentase. */
+  commission_type?: 'percent' | 'fixed' | null;
 }
 
 export async function fetchMyCommissions(): Promise<CommissionRow[]> {
@@ -169,14 +203,19 @@ export async function fetchMyCommissions(): Promise<CommissionRow[]> {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) return [];
-  const { data, error } = await supabase
+  const cols = 'id, order_id, base_amount, rate, amount, status, created_at';
+  let res: { data: unknown; error: { message: string } | null } = await supabase
     .from('commissions')
-    .select('id, order_id, base_amount, rate, amount, status, created_at')
+    .select(`${cols}, commission_type`)
     .eq('referrer_id', uid)
     .order('created_at', { ascending: false });
-  if (error) {
-    console.error('[fetchMyCommissions]', error);
+  // kolom commission_type baru ada setelah migrasi komisi-per-produk dijalankan
+  if (res.error && /commission_type/i.test(res.error.message)) {
+    res = await supabase.from('commissions').select(cols).eq('referrer_id', uid).order('created_at', { ascending: false });
+  }
+  if (res.error) {
+    console.error('[fetchMyCommissions]', res.error);
     return [];
   }
-  return (data || []) as CommissionRow[];
+  return (res.data || []) as CommissionRow[];
 }

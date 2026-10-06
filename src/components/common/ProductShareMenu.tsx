@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Share2, Copy, Check, MessageCircle, Facebook, Send, Linkedin, Twitter } from 'lucide-react';
 import { buildShareTargets, copyText } from '../../lib/share';
-import { buildProductShareUrl, commissionFor, formatRupiah } from '../../lib/referral';
+import { buildProductShareUrl, commissionFor, commissionPhrase, formatRupiah, CommissionConfig } from '../../lib/referral';
 import { useReferralContext } from '../../lib/ReferralContext';
+import { useCommissionRate } from '../../lib/commissionRate';
 
 interface ProductShareMenuProps {
   productKey: string;
@@ -19,6 +20,9 @@ interface ProductShareMenuProps {
   onRetryReferral?: () => void;
   onRequireLogin: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  /** Aturan komisi produk ini (kosong = tarif umum). */
+  commissionType?: CommissionConfig['commissionType'];
+  commissionValue?: number;
   /** true untuk kartu berlatar gelap */
   dark?: boolean;
 }
@@ -27,9 +31,12 @@ const ICONS = { whatsapp: MessageCircle, facebook: Facebook, x: Twitter, telegra
 
 export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
   productKey, productName, price, referralCode, isLoggedIn: isLoggedInProp, referralLoading: loadingProp,
-  onRetryReferral: retryProp, onRequireLogin, showToast, dark,
+  onRetryReferral: retryProp, onRequireLogin, showToast, dark, commissionType, commissionValue,
 }) => {
   const ctx = useReferralContext();
+  const rate = useCommissionRate();
+  const cfg: CommissionConfig = { commissionType, commissionValue };
+  const phrase = commissionPhrase(cfg, rate);
   const isLoggedIn = isLoggedInProp ?? ctx.isLoggedIn;
   const referralLoading = loadingProp ?? ctx.loading;
   const onRetryReferral = retryProp ?? ctx.retry;
@@ -65,7 +72,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
         onClick={onRequireLogin}
         className={`w-full text-[11px] font-semibold underline-offset-2 hover:underline cursor-pointer ${btnBase}`}
       >
-        Daftar untuk dapat komisi 30% dari setiap penjualan
+        Daftar untuk dapat komisi {phrase} dari setiap penjualan
       </button>
     );
   }
@@ -86,7 +93,7 @@ export const ProductShareMenu: React.FC<ProductShareMenuProps> = ({
 
   const url = buildProductShareUrl(productKey, referralCode);
   const text = `${productName} - cek paketnya di sini`;
-  const commission = price ? commissionFor(price) : null;
+  const commission = price ? commissionFor(price, cfg, rate) : null;
 
   const handleMain = async (e: React.MouseEvent) => {
     e.stopPropagation();

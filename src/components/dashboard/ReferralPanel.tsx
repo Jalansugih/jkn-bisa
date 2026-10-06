@@ -1,6 +1,6 @@
 import React from 'react';
 import { Wallet, Clock, CheckCircle2, Copy, Link2, Users, RefreshCw } from 'lucide-react';
-import { CommissionRow, ReferralStats, formatRupiah, COMMISSION_RATE } from '../../lib/referral';
+import { CommissionRow, ReferralStats, formatRupiah } from '../../lib/referral';
 import { copyText } from '../../lib/share';
 
 interface Props {
@@ -26,7 +26,6 @@ export const ReferralPanel: React.FC<Props> = ({
   referralCode, referralLoading, onRetryReferral, rows, totals, stats, commissionsLoading, onShopNow, onAskPayout,
 }) => {
   const [copied, setCopied] = React.useState<'code' | 'link' | null>(null);
-  const percent = Math.round(COMMISSION_RATE * 100);
 
   const copy = async (what: 'code' | 'link') => {
     if (!referralCode) return;
@@ -66,8 +65,8 @@ export const ReferralPanel: React.FC<Props> = ({
       </div>
 
       <p className="text-xs text-slate-500 mb-4">
-        Dapatkan komisi {percent}% dari harga paket setiap pembeli yang memesan lewat link Anda dan pesanannya sudah
-        Lunas. Komisi masuk status <strong>Menunggu</strong> selama masa refund 14 hari, lalu menjadi{' '}
+        Dapatkan komisi dari setiap pembeli yang memesan lewat link Anda dan pesanannya sudah Lunas. Besar komisi
+        berbeda tiap paket (persentase atau nominal tetap) dan tertera di tombol <strong>Bagikan</strong> pada paket. Komisi masuk status <strong>Menunggu</strong> selama masa refund 14 hari, lalu menjadi{' '}
         <strong>Bisa dicairkan</strong>.
       </p>
 
@@ -132,7 +131,9 @@ export const ReferralPanel: React.FC<Props> = ({
               <div>
                 <div className="font-semibold text-slate-800">{r.order_id}</div>
                 <div className="text-slate-500">
-                  {formatRupiah(r.base_amount)} x {Math.round(r.rate * 100)}% · {STATUS_LABEL[r.status]}
+                  {r.commission_type === 'fixed'
+                    ? `Nominal tetap dari paket ${formatRupiah(r.base_amount)}`
+                    : `${formatRupiah(r.base_amount)} x ${Number((r.rate * 100).toFixed(2))}%`}{' · '}{STATUS_LABEL[r.status]}
                 </div>
               </div>
               <div className={`font-extrabold ${r.status === 'cancelled' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>

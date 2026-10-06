@@ -12,6 +12,10 @@ export interface AdminCommission {
   created_at: string;
   approved_at: string | null;
   paid_at: string | null;
+  /** false = harga tidak ditemukan di tabel products (diambil dari data browser) -> cek manual. */
+  price_verified: boolean | null;
+  /** 'fixed' = nominal tetap per produk; selain itu = persentase. */
+  commission_type?: 'percent' | 'fixed' | null;
   referrer: {
     name: string | null;
     email: string | null;
@@ -26,18 +30,25 @@ function client() {
   return supabase;
 }
 
+const BASE_COLUMNS = 'id, order_id, base_amount, rate, amount, status, created_at, approved_at, paid_at';
+const JOINS =
+  ' referrer:profiles!referrer_id(name, email, whatsapp, referral_code),' +
+  ' order:orders!order_id(product, name)';
+
 /** Khusus admin (dibatasi RLS). */
 export async function adminFetchCommissions(): Promise<AdminCommission[]> {
-  const { data, error } = await client()
+  const db = client();
+  // Kolom price_verified / commission_type baru ada setelah migrasi hardening & komisi-per-produk dijalankan.
+  // Kalau belum, ulangi tanpa kolom itu supaya halaman komisi tetap terbuka.
+  let res: { data: unknown; error: { message: string } | null } = await db
     .from('commissions')
-    .select(
-      'id, order_id, base_amount, rate, amount, status, created_at, approved_at, paid_at,' +
-        ' referrer:profiles!referrer_id(name, email, whatsapp, referral_code),' +
-        ' order:orders!order_id(product, name)'
-    )
+    .select(`${BASE_COLUMNS}, price_verified, commission_type,${JOINS}`)
     .order('created_at', { ascending: false });
-  if (error) throw new Error(`Gagal memuat komisi: ${error.message}`);
-  return (data || []) as unknown as AdminCommission[];
+  if (res.error && /price_verified|commission_type/i.test(res.error.message)) {
+    res = await db.from('commissions').select(`${BASE_COLUMNS},${JOINS}`).order('created_at', { ascending: false });
+  }
+  if (res.error) throw new Error(`Gagal memuat komisi: ${res.error.message}`);
+  return ((res.data as unknown[]) || []) as AdminCommission[];
 }
 
 export async function adminSetCommissionStatus(id: string, status: CommissionStatus): Promise<void> {

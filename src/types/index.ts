@@ -16,6 +16,9 @@ export interface Product {
   imageUrl?: string;
   popular?: boolean;
   active?: boolean;
+  /** 'default' = ikut tarif umum; 'percent' = commissionValue dalam persen; 'fixed' = commissionValue dalam rupiah. */
+  commissionType?: 'default' | 'percent' | 'fixed';
+  commissionValue?: number;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -69,6 +72,10 @@ export interface OrderItem {
   documentLink?: string;
   paymentMethod?: string;
   paymentStatus?: 'Belum Dibayar' | 'Menunggu Verifikasi' | 'Lunas';
+  /** Kode referral yang tercatat saat checkout (hanya dipakai tampilan admin). */
+  referredByCode?: string;
+  /** true = server menerima referral (bukan referral ke diri sendiri / kode tak dikenal). */
+  referralAccepted?: boolean;
 }
 
 export interface ToastMessage {

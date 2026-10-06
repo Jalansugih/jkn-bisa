@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { Product } from '../../types';
 import { addProduct, updateProduct, deleteProduct, setProductActive } from '../../lib/productService';
 import { uploadProductImage } from '../../lib/imageUpload';
+import { commissionFor, commissionPhrase, formatRupiah as formatRp } from '../../lib/referral';
+import { useCommissionRate } from '../../lib/commissionRate';
 import {
   Search,
   Filter,
@@ -73,6 +75,9 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
   const [formIconName, setFormIconName] = useState('Package');
   const [formPopular, setFormPopular] = useState(false);
   const [formImageUrl, setFormImageUrl] = useState('');
+  const [formCommissionType, setFormCommissionType] = useState<NonNullable<Product['commissionType']>>('default');
+  const [formCommissionValue, setFormCommissionValue] = useState<number>(0);
+  const defaultRate = useCommissionRate();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,6 +118,8 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     setFormIconName('Globe');
     setFormPopular(false);
     setFormImageUrl('');
+    setFormCommissionType('default');
+    setFormCommissionValue(0);
     setFeaturesList([
       'Desain modern & responsif',
       'Integrasi WhatsApp otomatis',
@@ -138,6 +145,8 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     setFormIconName(product.iconName || 'Package');
     setFormPopular(Boolean(product.popular));
     setFormImageUrl(product.imageUrl || '');
+    setFormCommissionType(product.commissionType || 'default');
+    setFormCommissionValue(Number(product.commissionValue) || 0);
     setFeaturesList(product.features || []);
     setNewFeatureInput('');
     setIsModalOpen(true);
@@ -192,6 +201,21 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
       showToast('Tunggu sampai foto selesai diunggah.', 'warning');
       return;
     }
+    if (formCommissionType !== 'default') {
+      const v = Number(formCommissionValue);
+      if (!Number.isFinite(v) || v <= 0) {
+        showToast('Isi besar komisi lebih dari 0, atau pilih "Ikuti tarif umum".', 'warning');
+        return;
+      }
+      if (formCommissionType === 'percent' && v > 100) {
+        showToast('Komisi persentase maksimal 100%.', 'warning');
+        return;
+      }
+      if (formCommissionType === 'fixed' && v > Number(formPrice)) {
+        showToast('Komisi nominal tidak boleh melebihi harga paket.', 'warning');
+        return;
+      }
+    }
     if (featuresList.length === 0) {
       showToast('Tambahkan minimal 1 fitur produk!', 'warning');
       return;
@@ -214,6 +238,8 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
       iconName: formIconName,
       imageUrl: formImageUrl.trim() || undefined,
       popular: formPopular,
+      commissionType: formCommissionType,
+      commissionValue: formCommissionType === 'default' ? 0 : Number(formCommissionValue),
       active: isEditMode ? (products.find((p) => p.id === formId)?.active !== false) : true,
     };
 
@@ -371,6 +397,11 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                     </span>
                     <span className="text-[11px] text-slate-400">{p.priceUnit}</span>
                   </div>
+                  <div className="text-[10px] font-bold text-emerald-700 mt-1">
+                    Komisi: {commissionPhrase(p, defaultRate)}
+                    {p.commissionType === 'fixed' || p.commissionType === 'percent' ? '' : ' (umum)'}
+                    {' · '}{formatRp(commissionFor(p.price, p, defaultRate))}
+                  </div>
                   {p.originalPrice && (
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[11px] text-slate-400 line-through">
@@ -452,6 +483,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                 <img src={detailProduct.imageUrl} alt={detailProduct.name} loading="lazy" className="w-full max-h-56 object-cover rounded-xl border border-slate-200" />
               )}
               <div className="grid grid-cols-2 gap-3"><div className="p-3 rounded-xl bg-slate-50"><span className="text-xs text-slate-400">Harga pusat</span><div className="font-black text-slate-900">{formatRupiah(detailProduct.price)}</div></div><div className="p-3 rounded-xl bg-slate-50"><span className="text-xs text-slate-400">Status</span><div className="font-bold">{detailProduct.active === false ? 'Inactive' : 'Active'}</div></div></div>
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100"><span className="text-xs text-slate-400">Komisi afiliasi</span><div className="font-bold text-emerald-800">{commissionPhrase(detailProduct, defaultRate)} = {formatRp(commissionFor(detailProduct.price, detailProduct, defaultRate))} / penjualan</div></div>
               <div><span className="text-xs text-slate-400">Deskripsi</span><p className="text-slate-700 mt-1">{detailProduct.description || '-'}</p></div>
               <div><span className="text-xs text-slate-400">Fitur</span><ul className="mt-2 space-y-1">{detailProduct.features.map((f,i)=><li key={i} className="flex gap-2"><Check className="w-4 h-4 text-emerald-500" />{f}</li>)}</ul></div>
               <div className="text-xs text-slate-400">Product ID: {detailProduct.id}</div>
@@ -685,6 +717,59 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Komisi Afiliasi */}
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                <div>
+                  <label className="block font-bold uppercase tracking-wider text-slate-700">
+                    Komisi Afiliasi
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Dibayarkan ke pemilik link saat pesanan produk ini Lunas. Dihitung dari harga jual di atas.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Jenis komisi</label>
+                    <select
+                      value={formCommissionType}
+                      onChange={(e) => setFormCommissionType(e.target.value as NonNullable<Product['commissionType']>)}
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800"
+                    >
+                      <option value="default">Ikuti tarif umum ({commissionPhrase(undefined, defaultRate)})</option>
+                      <option value="percent">Persentase dari harga (%)</option>
+                      <option value="fixed">Nominal tetap (Rp)</option>
+                    </select>
+                  </div>
+                  {formCommissionType !== 'default' && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        {formCommissionType === 'percent' ? 'Besar komisi (%)' : 'Besar komisi (Rp)'}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={formCommissionType === 'percent' ? 100 : undefined}
+                        step={formCommissionType === 'percent' ? 0.5 : 1000}
+                        value={formCommissionValue || ''}
+                        onChange={(e) => setFormCommissionValue(Number(e.target.value))}
+                        placeholder={formCommissionType === 'percent' ? 'cth: 25' : 'cth: 200000'}
+                        className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800"
+                      />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] font-semibold text-emerald-800">
+                  Estimasi komisi per penjualan:{' '}
+                  {formatRp(
+                    commissionFor(
+                      Number(formPrice) || 0,
+                      { commissionType: formCommissionType, commissionValue: formCommissionValue },
+                      defaultRate
+                    )
+                  )}
+                </p>
               </div>
 
               {/* Features List Interactive Manager */}

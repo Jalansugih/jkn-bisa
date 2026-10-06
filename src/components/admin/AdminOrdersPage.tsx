@@ -231,6 +231,22 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                         {ord.id}
                       </span>
                       <div className="text-[10px] text-slate-400 mt-1">{ord.date}</div>
+                      {ord.referredByCode && (
+                        <div
+                          title={
+                            ord.referralAccepted
+                              ? 'Referral diterima: komisi dibuat saat pesanan Lunas'
+                              : 'Referral ditolak server (kode tidak dikenal / referral ke diri sendiri): tidak ada komisi'
+                          }
+                          className={`mt-1 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                            ord.referralAccepted
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-500 border-slate-200 line-through'
+                          }`}
+                        >
+                          Ref: {ord.referredByCode}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4 min-w-[180px]">
                       <div className="font-bold text-slate-900">{ord.product}</div>

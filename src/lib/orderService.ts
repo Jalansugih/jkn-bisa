@@ -32,6 +32,8 @@ export interface OrderRow {
   document_link: string | null;
   payment_method?: string | null;
   payment_status?: OrderItem['paymentStatus'] | null;
+  referred_by_code?: string | null;
+  referred_by?: string | null;
 }
 
 export function rowToOrderItem(row: OrderRow): OrderItem {
@@ -54,6 +56,8 @@ export function rowToOrderItem(row: OrderRow): OrderItem {
     documentLink: row.document_link || '',
     paymentMethod: row.payment_method || undefined,
     paymentStatus: row.payment_status || 'Belum Dibayar',
+    referredByCode: row.referred_by_code || undefined,
+    referralAccepted: Boolean(row.referred_by),
   };
 }
 
@@ -155,30 +159,35 @@ export async function trackOrder(searchTerm: string): Promise<OrderItem | null> 
   } as OrderRow);
 }
 
-export function subscribeToMyOrders(uid: string, callback: (orders: OrderItem[]) => void) {
-  if (!isSupabaseConfigured || !supabase) return () => {};
+export function subscribeToMyOrders(uid: string | null, callback: (orders: OrderItem[]) => void) {
+  if (!uid || !isSupabaseConfigured || !supabase) {
+    callback([]);
+    return () => {};
+  }
+  const db = supabase;
 
-  const subscription = supabase
-    .channel('my-orders')
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'orders',
-      filter: `uid=eq.${uid}`
-    }, async () => {
-      const { data } = await supabase!
-        .from('orders')
-        .select('*')
-        .eq('uid', uid)
-        .order('created_at', { ascending: false });
-      
-      if (data) {
-        callback(data.map(row => rowToOrderItem(row as OrderRow)));
-      }
-    })
+  const fetchAndEmit = async () => {
+    const { data, error } = await db
+      .from('orders')
+      .select('*')
+      .eq('uid', uid)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.warn('[subscribeToMyOrders] Gagal memuat pesanan:', error.message);
+      return;
+    }
+    callback((data || []).map((row) => rowToOrderItem(row as OrderRow)));
+  };
+
+  // Muat sekali di awal, lalu perbarui setiap ada perubahan realtime
+  fetchAndEmit();
+
+  const channel = db
+    .channel(`my-orders-${uid}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `uid=eq.${uid}` }, () => fetchAndEmit())
     .subscribe();
 
   return () => {
-    subscription.unsubscribe();
+    db.removeChannel(channel);
   };
 }
