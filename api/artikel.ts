@@ -17,6 +17,13 @@ interface Res {
 
 const SITE_NAME = 'BinaUsaha';
 
+interface Article {
+  title: string;
+  excerpt: string | null;
+  image: string | null;
+  category_label: string | null;
+}
+
 function first(v: string | string[] | undefined): string {
   return Array.isArray(v) ? v[0] || '' : v || '';
 }
@@ -54,7 +61,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   // 2) Data artikel (hanya yang PUBLISHED)
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-  let article: { title: string; excerpt: string | null; image: string | null; category_label: string | null } | null = null;
+  let article: Article | null = null;
 
   if (supabaseUrl && anonKey && slug) {
     try {
@@ -64,7 +71,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         `&slug=eq.${encodeURIComponent(slug)}&status=eq.PUBLISHED&limit=1`;
       const r = await fetch(url, { headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` } });
       if (r.ok) {
-        const rows = (await r.json()) as typeof article[];
+        const rows = (await r.json()) as Article[];
         article = rows[0] || null;
       }
     } catch { /* jatuh ke meta default */ }
