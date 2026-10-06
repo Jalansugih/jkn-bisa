@@ -9,6 +9,7 @@ import {
 } from '../../lib/commissionService';
 import { formatRupiah } from '../../lib/referral';
 import { adminSetCommissionRate, useCommissionRate } from '../../lib/commissionRate';
+import { AdminPayout, adminFetchPayouts, adminMarkPayoutPaid, adminRejectPayout } from '../../lib/payoutService';
 
 interface Props {
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
@@ -38,6 +39,8 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
   const currentRate = useCommissionRate();
   const [rateInput, setRateInput] = useState('');
   const [savingRate, setSavingRate] = useState(false);
+  const [payouts, setPayouts] = useState<AdminPayout[]>([]);
+  const [busyPayoutId, setBusyPayoutId] = useState<string | null>(null);
 
   useEffect(() => { setRateInput(String(Number((currentRate * 100).toFixed(1)))); }, [currentRate]);
 
@@ -70,7 +73,49 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
     }
   }, [showToast]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadPayouts = useCallback(async () => {
+    try {
+      setPayouts(await adminFetchPayouts());
+    } catch (e: any) {
+      // tabel pencairan baru ada setelah migrasi commission_payouts dijalankan
+      showToast(e.message || 'Gagal memuat pencairan.', 'error');
+    }
+  }, [showToast]);
+
+  useEffect(() => { load(); loadPayouts(); }, [load, loadPayouts]);
+
+  const markPayoutPaid = async (p: AdminPayout) => {
+    const ref = prompt(
+      `Transfer ${formatRupiah(p.amount)} ke ${p.bank_name} ${p.account_number} a.n. ${p.account_name}.\n\nMasukkan nomor referensi / catatan transfer (boleh dikosongkan):`
+    );
+    if (ref === null) return;
+    setBusyPayoutId(p.id);
+    try {
+      await adminMarkPayoutPaid(p.id, ref);
+      showToast('Pencairan ditandai sudah ditransfer.', 'success');
+      await Promise.all([load(), loadPayouts()]);
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    } finally {
+      setBusyPayoutId(null);
+    }
+  };
+
+  const rejectPayout = async (p: AdminPayout) => {
+    const reason = prompt('Alasan menolak pencairan (akan dilihat user):');
+    if (reason === null) return;
+    if (!reason.trim()) { showToast('Isi alasan penolakan.', 'warning'); return; }
+    setBusyPayoutId(p.id);
+    try {
+      await adminRejectPayout(p.id, reason);
+      showToast('Pencairan ditolak. Komisi kembali ke Disetujui.', 'success');
+      await Promise.all([load(), loadPayouts()]);
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    } finally {
+      setBusyPayoutId(null);
+    }
+  };
 
   const totals = useMemo(() => {
     const sum = (s: CommissionStatus) =>
@@ -122,7 +167,7 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
           <div>
             <h2 className="text-xl font-heading font-extrabold text-slate-900">Komisi Referral</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Komisi dibuat otomatis saat pesanan berstatus Lunas. Setujui setelah masa refund, tandai Dibayar setelah transfer.
+              Komisi dibuat otomatis saat pesanan berstatus Lunas. Setujui setelah masa refund. Transfer dicatat lewat pengajuan pencairan user.
             </p>
           </div>
           <div className="flex gap-2">
@@ -163,6 +208,51 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
             <option value="cancelled">Dibatalkan</option>
           </select>
         </div>
+      </div>
+
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <h3 className="text-sm font-heading font-extrabold text-slate-900">Pencairan</h3>
+        <p className="text-xs text-slate-500 mt-0.5 mb-3">
+          Transfer manual ke rekening yang diisi user, lalu tandai ditransfer dan catat nomor referensinya.
+        </p>
+        {payouts.length === 0 ? (
+          <div className="text-xs text-slate-400">Belum ada pengajuan pencairan.</div>
+        ) : (
+          <ul className="divide-y divide-slate-100 text-xs">
+            {payouts.map((p) => (
+              <li key={p.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="font-bold text-slate-900">
+                    {formatRupiah(p.amount)} · {p.user?.name || p.user?.email || '-'}
+                  </div>
+                  <div className="text-slate-600">{p.bank_name} {p.account_number} a.n. {p.account_name}</div>
+                  <div className="text-[11px] text-slate-500">
+                    Diajukan {new Date(p.created_at).toLocaleString('id-ID')}
+                    {p.user?.whatsapp ? ` · WA ${p.user.whatsapp}` : ''}
+                    {p.status === 'paid' && ` · Ditransfer${p.transfer_ref ? `, ref ${p.transfer_ref}` : ''}`}
+                    {p.status === 'rejected' && ` · Ditolak: ${p.note || '-'}`}
+                  </div>
+                </div>
+                <div className="whitespace-nowrap space-x-1.5">
+                  {p.status === 'requested' ? (
+                    busyPayoutId === p.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin inline text-slate-400" />
+                    ) : (
+                      <>
+                        <button onClick={() => markPayoutPaid(p)} className="px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-bold cursor-pointer">Tandai ditransfer</button>
+                        <button onClick={() => rejectPayout(p)} className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-[11px] font-bold cursor-pointer">Tolak</button>
+                      </>
+                    )
+                  ) : (
+                    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${p.status === 'paid' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                      {p.status === 'paid' ? 'Ditransfer' : 'Ditolak'}
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
@@ -256,15 +346,7 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
                               )
                             } className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer">Setujui</button>
                           )}
-                          {r.status === 'approved' && (
-                            <button
-                              onClick={() => setStatus(r, 'paid', `Tandai ${formatRupiah(r.amount)} untuk ${r.referrer?.name || 'user'} sudah DIBAYAR?`)}
-                              className="px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-bold cursor-pointer"
-                            >
-                              Tandai dibayar
-                            </button>
-                          )}
-                          {(r.status === 'pending' || r.status === 'approved') && (
+                          {(r.status === 'pending' || r.status === 'approved') && !r.payout_id && (
                             <button
                               onClick={() => setStatus(r, 'cancelled', 'Batalkan komisi ini?')}
                               className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-[11px] font-bold cursor-pointer"

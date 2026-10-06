@@ -103,3 +103,75 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 
+
+/* =====================================================================
+   Modal Masuk / Daftar - gaya "Blue Glass"
+   Semua kelas berawalan auth- dan hanya dipakai oleh AuthModal.
+   ===================================================================== */
+@keyframes authAmbientFloat {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(30px, -40px) scale(1.1); }
+}
+@keyframes authFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes authScaleUp {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.auth-overlay { animation: authFadeIn 0.2s ease-out; }
+.auth-ambient-1 { animation: authAmbientFloat 12s infinite ease-in-out; }
+.auth-ambient-2 { animation: authAmbientFloat 15s infinite ease-in-out 3s; }
+.auth-ambient-3 { animation: authAmbientFloat 18s infinite ease-in-out 6s; }
+
+/* Kartu kaca tembus pandang */
+.auth-glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 25px 60px -15px rgba(15, 23, 42, 0.12),
+    0 10px 20px -5px rgba(37, 99, 235, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.9);
+  animation: authScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Kolom isian kaca */
+.auth-glass-input {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(203, 213, 225, 0.6);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.auth-glass-input:focus {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+/* Tombol utama gradasi biru */
+.auth-btn-gradient {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.4);
+  transition: all 0.25s ease;
+}
+.auth-btn-gradient:hover:not(:disabled) {
+  box-shadow: 0 12px 28px -4px rgba(37, 99, 235, 0.55);
+  transform: translateY(-1px);
+}
+.auth-btn-gradient:active:not(:disabled) { transform: translateY(1px); }
+.auth-btn-gradient:disabled { opacity: 0.6; cursor: not-allowed; }
+.auth-btn-gradient:focus-visible { outline: 2px solid #1e40af; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-overlay,
+  .auth-ambient-1,
+  .auth-ambient-2,
+  .auth-ambient-3,
+  .auth-glass-card { animation: none; }
+  .auth-btn-gradient:hover:not(:disabled) { transform: none; }
+}

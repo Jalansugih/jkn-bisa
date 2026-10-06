@@ -2,6 +2,10 @@ import React from 'react';
 import { Wallet, Clock, CheckCircle2, Copy, Link2, Users, RefreshCw } from 'lucide-react';
 import { CommissionRow, ReferralStats, formatRupiah } from '../../lib/referral';
 import { copyText } from '../../lib/share';
+import {
+  Payout, PayoutAccount, DEFAULT_MIN_PAYOUT,
+  fetchMyPayoutAccount, fetchMinPayout, fetchMyPayouts, requestPayout,
+} from '../../lib/payoutService';
 
 interface Props {
   referralCode: string | null;
@@ -12,7 +16,10 @@ interface Props {
   stats: ReferralStats | null;
   commissionsLoading?: boolean;
   onShopNow?: () => void;
+  /** Tidak dipakai lagi (pencairan kini diajukan lewat formulir di panel ini). Dibiarkan agar pemanggil lama tetap valid. */
   onAskPayout?: () => void;
+  /** Dipanggil setelah pengajuan berhasil, supaya induk memuat ulang daftar komisi. */
+  onPayoutChanged?: () => void;
 }
 
 const STATUS_LABEL: Record<CommissionRow['status'], string> = {
@@ -23,9 +30,49 @@ const STATUS_LABEL: Record<CommissionRow['status'], string> = {
 };
 
 export const ReferralPanel: React.FC<Props> = ({
-  referralCode, referralLoading, onRetryReferral, rows, totals, stats, commissionsLoading, onShopNow, onAskPayout,
+  referralCode, referralLoading, onRetryReferral, rows, totals, stats, commissionsLoading, onShopNow, onPayoutChanged,
 }) => {
   const [copied, setCopied] = React.useState<'code' | 'link' | null>(null);
+
+  // --- pencairan ---
+  const [payouts, setPayouts] = React.useState<Payout[]>([]);
+  const [minPayout, setMinPayout] = React.useState(DEFAULT_MIN_PAYOUT);
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [account, setAccount] = React.useState<PayoutAccount>({ bank_name: '', account_number: '', account_name: '' });
+  const [submitting, setSubmitting] = React.useState(false);
+  const [payoutError, setPayoutError] = React.useState<string | null>(null);
+
+  const loadPayouts = React.useCallback(async () => { setPayouts(await fetchMyPayouts()); }, []);
+
+  React.useEffect(() => {
+    loadPayouts();
+    fetchMinPayout().then(setMinPayout);
+    fetchMyPayoutAccount().then((a) => { if (a) setAccount(a); });
+  }, [loadPayouts]);
+
+  // Komisi 'Bisa dicairkan' yang sudah terkunci di pengajuan aktif tidak bisa diajukan lagi.
+  const openPayout = payouts.find((p) => p.status === 'requested');
+  const available = Math.max(0, totals.approved - (openPayout ? Number(openPayout.amount) : 0));
+  const canRequest = !openPayout && available >= minPayout;
+
+  const submitPayout = async () => {
+    setPayoutError(null);
+    setSubmitting(true);
+    try {
+      await requestPayout({
+        bank_name: account.bank_name.trim(),
+        account_number: account.account_number.trim(),
+        account_name: account.account_name.trim(),
+      });
+      setFormOpen(false);
+      await loadPayouts();
+      onPayoutChanged?.();
+    } catch (e: any) {
+      setPayoutError(e.message || 'Gagal mengajukan pencairan.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const copy = async (what: 'code' | 'link') => {
     if (!referralCode) return;
@@ -104,14 +151,102 @@ export const ReferralPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {totals.approved > 0 && onAskPayout && (
+      {openPayout && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          Pengajuan pencairan <strong>{formatRupiah(openPayout.amount)}</strong> ke {openPayout.bank_name} {openPayout.account_number}{' '}
+          sedang diproses admin. Anda akan melihat statusnya berubah di riwayat di bawah.
+        </div>
+      )}
+
+      {!openPayout && available > 0 && !canRequest && (
+        <p className="mb-5 text-[11px] text-slate-500">
+          Pencairan bisa diajukan mulai {formatRupiah(minPayout)}. Saat ini {formatRupiah(available)} bisa dicairkan.
+        </p>
+      )}
+
+      {canRequest && !formOpen && (
         <button
           type="button"
-          onClick={onAskPayout}
+          onClick={() => { setPayoutError(null); setFormOpen(true); }}
           className="mb-5 w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
         >
-          Ajukan pencairan {formatRupiah(totals.approved)} via WhatsApp
+          Cairkan {formatRupiah(available)}
         </button>
+      )}
+
+      {canRequest && formOpen && (
+        <div className="mb-5 rounded-xl border border-slate-200 p-4 space-y-3">
+          <div className="text-xs font-bold text-slate-900">Rekening tujuan transfer</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              value={account.bank_name}
+              onChange={(e) => setAccount({ ...account, bank_name: e.target.value })}
+              placeholder="Bank / e-wallet (mis. BCA, DANA)"
+              className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              value={account.account_number}
+              onChange={(e) => setAccount({ ...account, account_number: e.target.value })}
+              inputMode="numeric"
+              placeholder="Nomor rekening"
+              className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              value={account.account_name}
+              onChange={(e) => setAccount({ ...account, account_name: e.target.value })}
+              placeholder="Nama pemilik rekening"
+              className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Seluruh komisi <strong>Bisa dicairkan</strong> ({formatRupiah(available)}) akan diajukan sekaligus. Pastikan nama pemilik rekening sesuai.
+          </p>
+          {payoutError && <p className="text-[11px] font-semibold text-rose-600">{payoutError}</p>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={submitPayout}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold cursor-pointer"
+            >
+              {submitting ? 'Mengirim...' : 'Ajukan pencairan'}
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => setFormOpen(false)}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {payouts.length > 0 && (
+        <div className="mb-5">
+          <div className="text-xs font-bold text-slate-900 mb-1.5">Riwayat pencairan</div>
+          <ul className="divide-y divide-slate-100 text-xs">
+            {payouts.map((p) => (
+              <li key={p.id} className="py-2 flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-slate-800">
+                    {new Date(p.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {' · '}{p.bank_name} {p.account_number}
+                  </div>
+                  <div className="text-slate-500">
+                    {p.status === 'requested' && 'Menunggu transfer admin'}
+                    {p.status === 'paid' && `Sudah ditransfer${p.transfer_ref ? ` · ref ${p.transfer_ref}` : ''}`}
+                    {p.status === 'rejected' && `Ditolak${p.note ? `: ${p.note}` : ''}. Komisi kembali bisa diajukan.`}
+                  </div>
+                </div>
+                <div className={`font-extrabold ${p.status === 'rejected' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                  {formatRupiah(p.amount)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {rows.length === 0 ? (

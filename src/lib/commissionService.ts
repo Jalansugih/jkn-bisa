@@ -12,6 +12,8 @@ export interface AdminCommission {
   created_at: string;
   approved_at: string | null;
   paid_at: string | null;
+  /** Terisi bila komisi sudah masuk pengajuan pencairan (terkunci). */
+  payout_id?: string | null;
   /** false = harga tidak ditemukan di tabel products (diambil dari data browser) -> cek manual. */
   price_verified: boolean | null;
   /** 'fixed' = nominal tetap per produk; selain itu = persentase. */
@@ -31,6 +33,7 @@ function client() {
 }
 
 const BASE_COLUMNS = 'id, order_id, base_amount, rate, amount, status, created_at, approved_at, paid_at';
+const EXTRA_COLUMNS = 'price_verified, commission_type, payout_id';
 const JOINS =
   ' referrer:profiles!referrer_id(name, email, whatsapp, referral_code),' +
   ' order:orders!order_id(product, name)';
@@ -42,9 +45,9 @@ export async function adminFetchCommissions(): Promise<AdminCommission[]> {
   // Kalau belum, ulangi tanpa kolom itu supaya halaman komisi tetap terbuka.
   let res: { data: unknown; error: { message: string } | null } = await db
     .from('commissions')
-    .select(`${BASE_COLUMNS}, price_verified, commission_type,${JOINS}`)
+    .select(`${BASE_COLUMNS}, ${EXTRA_COLUMNS},${JOINS}`)
     .order('created_at', { ascending: false });
-  if (res.error && /price_verified|commission_type/i.test(res.error.message)) {
+  if (res.error && /price_verified|commission_type|payout_id/i.test(res.error.message)) {
     res = await db.from('commissions').select(`${BASE_COLUMNS},${JOINS}`).order('created_at', { ascending: false });
   }
   if (res.error) throw new Error(`Gagal memuat komisi: ${res.error.message}`);
