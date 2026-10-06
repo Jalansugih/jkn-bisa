@@ -5,9 +5,13 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import AdminApp from './AdminApp.tsx';
 import './index.css';
-import { initGoogleAnalytics } from './lib/analytics';
+import {
+  initGoogleAnalytics,
+  trackPageView,
+} from './lib/analytics';
 
 initGoogleAnalytics();
+trackPageView();
 
 const isAdminPath =
   window.location.pathname === '/admin' ||
