@@ -9,6 +9,7 @@ import { subscribeToArticles } from './lib/articleService';
 import { ARTICLES_DATA } from './data/mockData';
 import { ARTICLE_BASE_PATH, articlePath, parseArticleSlug, slugify } from './lib/slug';
 import { LegalView, legalPath, legalViewFromPath } from './lib/legalPaths';
+import { PRODUCTS_PATH, isProductsPath } from './lib/productPaths';
 
 // Layout components
 import { TopPromoBar } from './components/layout/TopPromoBar';
@@ -28,6 +29,7 @@ import { KategoriMarqueeSection } from './components/home/KategoriMarqueeSection
 import { BusinessMatrixSection } from './components/home/BusinessMatrixSection';
 import { SolutionsGridSection } from './components/home/SolutionsGridSection';
 import { ProductsSection } from './components/home/ProductsSection';
+import { ProductsPage } from './components/products/ProductsPage';
 import { PricingSection } from './components/home/PricingSection';
 import { WorkflowSection } from './components/home/WorkflowSection';
 import { RfqFormSection } from './components/home/RfqFormSection';
@@ -117,11 +119,12 @@ export const App: React.FC = () => {
 
   // Public pages remain state-driven. The dedicated /admin entry is mounted by main.tsx.
   const [currentView, setCurrentView] = useState<
-    'home' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin' | 'terms' | 'privacy'
+    'home' | 'products' | 'articles' | 'article-detail' | 'service-digital' | 'service-legalitas' | 'service-konstruksi' | 'service-agro' | 'dashboard' | 'admin' | 'terms' | 'privacy'
 >(() => {
     const path = window.location.pathname;
     const legal = legalViewFromPath(path);
     if (legal) return legal;
+    if (isProductsPath(path)) return 'products';
     if (parseArticleSlug(path)) return 'article-detail';
     if (path === ARTICLE_BASE_PATH || path === ARTICLE_BASE_PATH + '/') return 'articles';
     return 'home';
@@ -143,6 +146,14 @@ export const App: React.FC = () => {
   // Selected product filter for smooth jumps
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Buka halaman daftar semua produk (/produk), opsional dengan kategori / kata kunci awal
+  const openProductsPage = (category: string = 'all', keyword: string = '') => {
+    setProductCategoryFilter(category || 'all');
+    setSearchQuery(keyword);
+    setCurrentView('products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Service sub-tab and scroll target
   const [serviceSubTab, setServiceSubTab] = useState<string | undefined>(undefined);
@@ -194,6 +205,8 @@ export const App: React.FC = () => {
       const legal = legalViewFromPath(path);
       if (legal) {
         setCurrentView(legal);
+      } else if (isProductsPath(path)) {
+        setCurrentView('products');
       } else if (slug) {
         setArticleSlug(slug);
         setCurrentView('article-detail');
@@ -215,10 +228,13 @@ export const App: React.FC = () => {
       target = slugArticle ? articlePath(slugArticle.slug || slugify(slugArticle.title)) : null;
     } else if (currentView === 'articles') {
       target = ARTICLE_BASE_PATH;
+    } else if (currentView === 'products') {
+      target = PRODUCTS_PATH;
     } else if (currentView === 'terms' || currentView === 'privacy') {
       target = legalPath(currentView);
     } else if (
       window.location.pathname.startsWith(ARTICLE_BASE_PATH) ||
+      isProductsPath(window.location.pathname) ||
       legalViewFromPath(window.location.pathname)
     ) {
       target = '/'; // keluar dari area artikel / halaman hukum
@@ -234,6 +250,8 @@ export const App: React.FC = () => {
       document.title = `${slugArticle.title} | BinaUsaha`;
     } else if (currentView === 'articles') {
       document.title = 'Artikel & Tips Bisnis UMKM | BinaUsaha';
+    } else if (currentView === 'products') {
+      document.title = 'Semua Produk & Layanan | BinaUsaha';
     } else if (currentView === 'terms') {
       document.title = 'Syarat & Ketentuan | BinaUsaha';
     } else if (currentView === 'privacy') {
@@ -386,16 +404,8 @@ export const App: React.FC = () => {
 
   // Search handler from Hero section
   const handleHeroSearch = (keyword: string) => {
-    setCurrentView('home');
-    setSearchQuery(keyword);
-    setProductCategoryFilter('all');
-
-    setTimeout(() => {
-      const el = document.getElementById('produk');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 60);
+    // Hasil pencarian & katalog lengkap ada di halaman produk
+    openProductsPage('all', keyword.trim());
 
     if (keyword.trim()) {
       showToast(`Mencari solusi: "${keyword}"`, 'info');
@@ -481,26 +491,15 @@ export const App: React.FC = () => {
           }}
           onOpenAdmin={() => navigateAppPath('/admin')}
           onOpenServicePage={handleNavigateService}
-          onSelectNeedCategory={(cat) => {
-            setCurrentView('home');
-            setSearchQuery('');
-            setProductCategoryFilter(cat);
-            const el = document.getElementById('produk');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}
-          onFilterProductsCategory={(cat) => {
-            setCurrentView('home');
-            setSearchQuery('');
-            setProductCategoryFilter(cat);
-            const el = document.getElementById('produk');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}
+          onSelectNeedCategory={(cat) => openProductsPage(cat)}
+          onFilterProductsCategory={(cat) => openProductsPage(cat)}
           orderCount={orders.length}
           onOpenArticlesHub={(cat) => handleOpenArticlesHub(cat || 'all')}
           onOpenArticle={handleOpenArticle}
           onGoHome={() => {
             setCurrentView('home');
             setSearchQuery('');
+            setProductCategoryFilter('all');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         />
@@ -543,6 +542,23 @@ export const App: React.FC = () => {
               setCurrentInvoiceOrder(order);
               setIsInvoiceModalOpen(true);
             }}
+          />
+        ) : currentView === 'products' ? (
+          <ProductsPage
+            products={products}
+            initialCategory={productCategoryFilter}
+            initialSearch={searchQuery}
+            onBackToHome={() => {
+              setSearchQuery('');
+              setProductCategoryFilter('all');
+              setCurrentView('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onSelectProductOrder={handleOpenOrder}
+            onAskWhatsapp={handleAskWhatsapp}
+            referralCode={referralCode}
+            onRequireLogin={handleRequireLogin}
+            showToast={showToast}
           />
         ) : currentView === 'article-detail' && !slugArticle ? (
           <div className="min-h-[60vh] flex items-center justify-center p-6">
@@ -677,12 +693,7 @@ export const App: React.FC = () => {
             <HeroSection
               onSearch={handleHeroSearch}
               onOpenRfqModal={() => setIsRfqModalOpen(true)}
-              onSelectCategory={(cat) => {
-                setSearchQuery('');
-                setProductCategoryFilter(cat);
-                const el = document.getElementById('produk');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
+              onSelectCategory={(cat) => openProductsPage(cat)}
               onOpenOrderPtPro={() => handleOpenOrder('pt_pro')}
               onOpenConsultation={() => setIsConsultModalOpen(true)}
               onOpenOrderTrack={() => setIsTrackerModalOpen(true)}
@@ -699,12 +710,7 @@ export const App: React.FC = () => {
 
             {/* 5. Kategori Marquee */}
             <KategoriMarqueeSection
-              onSelectCategory={(cat) => {
-                setSearchQuery('');
-                setProductCategoryFilter(cat);
-                const el = document.getElementById('produk');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
+              onSelectCategory={(cat) => openProductsPage(cat)}
             />
 
             {/* 6. Business Phase Matrix */}
@@ -716,9 +722,7 @@ export const App: React.FC = () => {
             {/* 8. Products & Services Catalog Section */}
             <ProductsSection
               products={products}
-              initialCategory={productCategoryFilter}
-              searchQuery={searchQuery}
-              onClearSearch={() => setSearchQuery('')}
+              onViewAllProducts={() => openProductsPage('all')}
               onSelectProductOrder={handleOpenOrder}
               onAskWhatsapp={handleAskWhatsapp}
               referralCode={referralCode}

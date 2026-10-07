@@ -61,7 +61,7 @@ CREATE POLICY "Users can update own profile or admins update any"
 CREATE TABLE IF NOT EXISTS public.products (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('website', 'pos', 'legalitas', 'bundling')),
+  category TEXT NOT NULL CHECK (char_length(btrim(category)) BETWEEN 1 AND 40),
   price NUMERIC NOT NULL,
   original_price NUMERIC,
   discount_pct NUMERIC,

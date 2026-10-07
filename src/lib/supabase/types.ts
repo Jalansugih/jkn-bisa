@@ -125,7 +125,7 @@ export interface Database {
         Row: {
           id: string;
           name: string;
-          category: 'website' | 'pos' | 'legalitas' | 'bundling';
+          category: string;
           price: number;
           original_price: number | null;
           discount_pct: number | null;
@@ -144,7 +144,7 @@ export interface Database {
         Insert: {
           id: string;
           name: string;
-          category: 'website' | 'pos' | 'legalitas' | 'bundling';
+          category: string;
           price: number;
           original_price?: number | null;
           discount_pct?: number | null;

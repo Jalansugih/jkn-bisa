@@ -347,7 +347,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                       <a
                         href="#produk"
-                        onClick={() => handleProductFilterClick('all')}
+                        onClick={(e) => { e.preventDefault(); handleProductFilterClick('all'); }}
                         className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
                       >
                         <span>Lihat Semua Produk</span>
@@ -366,7 +366,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('website')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('website'); }}
                               className="hover:text-blue-600 transition block py-1"
                             >
                               Website & Toko Online
@@ -375,7 +375,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('pos')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('pos'); }}
                               className="hover:text-blue-600 transition block py-1"
                             >
                               Software Kasir POS
@@ -384,7 +384,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('pos')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('pos'); }}
                               className="hover:text-blue-600 transition block py-1"
                             >
                               Hardware Printer & Cash Drawer
@@ -393,7 +393,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('website')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('website'); }}
                               className="hover:text-blue-600 transition block py-1"
                             >
                               Domain, Hosting & Socmed Ads
@@ -412,7 +412,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('legalitas')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('legalitas'); }}
                               className="hover:text-emerald-600 transition block py-1 font-medium"
                             >
                               Pendirian PT Pro (Free App Keuangan)
@@ -421,7 +421,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('legalitas')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('legalitas'); }}
                               className="hover:text-emerald-600 transition block py-1"
                             >
                               Pendirian CV Pro
@@ -430,7 +430,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('legalitas')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('legalitas'); }}
                               className="hover:text-emerald-600 transition block py-1"
                             >
                               Pengurusan NIB & Izin Usaha
@@ -439,7 +439,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('legalitas')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('legalitas'); }}
                               className="hover:text-emerald-600 transition block py-1"
                             >
                               Pendaftaran Merek DJKI (HAKI)
@@ -458,7 +458,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('bundling')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('bundling'); }}
                               className="hover:text-blue-600 transition block py-1 font-bold text-blue-600"
                             >
                               Paket Akselerasi All-In-One
@@ -467,7 +467,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('website')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('website'); }}
                               className="hover:text-amber-600 transition block py-1"
                             >
                               Branding & Social Media Kit
@@ -476,7 +476,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <li>
                             <a
                               href="#produk"
-                              onClick={() => handleProductFilterClick('website')}
+                              onClick={(e) => { e.preventDefault(); handleProductFilterClick('website'); }}
                               className="hover:text-amber-600 transition block py-1"
                             >
                               Landing Page Kilat Express
@@ -1194,28 +1194,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="pl-8 pr-2 py-1.5 space-y-1.5 text-xs">
                     <a
                       href="#produk"
-                      onClick={() => handleProductFilterClick('website')}
+                      onClick={(e) => { e.preventDefault(); handleProductFilterClick('website'); }}
                       className="block py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium"
                     >
                       Website & E-Commerce
                     </a>
                     <a
                       href="#produk"
-                      onClick={() => handleProductFilterClick('pos')}
+                      onClick={(e) => { e.preventDefault(); handleProductFilterClick('pos'); }}
                       className="block py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium"
                     >
                       Sistem Kasir POS & Hardware
                     </a>
                     <a
                       href="#produk"
-                      onClick={() => handleProductFilterClick('legalitas')}
+                      onClick={(e) => { e.preventDefault(); handleProductFilterClick('legalitas'); }}
                       className="block py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium"
                     >
                       Legalitas PT, CV, NIB, Halal & Merek
                     </a>
                     <a
                       href="#produk"
-                      onClick={() => handleProductFilterClick('bundling')}
+                      onClick={(e) => { e.preventDefault(); handleProductFilterClick('bundling'); }}
                       className="block py-1.5 px-2.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium"
                     >
                       Paket Bundling Akselerasi

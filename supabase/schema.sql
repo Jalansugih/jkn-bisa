@@ -265,7 +265,7 @@ create policy "rfqs_delete" on public.rfqs for delete using (public.is_admin());
 create table if not exists public.products (
   id             text primary key,
   name           text not null,
-  category       text not null check (category in ('website','pos','legalitas','bundling')),
+  category       text not null check (char_length(btrim(category)) between 1 and 40),
   price          numeric not null default 0,
   original_price numeric,
   discount_pct   numeric,

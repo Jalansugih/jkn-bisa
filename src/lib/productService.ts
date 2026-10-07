@@ -7,7 +7,7 @@ const STORAGE_KEY = 'bu_products_cache';
 interface ProductRow {
   id: string;
   name: string;
-  category: Product['category'];
+  category: string;
   price: number;
   original_price: number | null;
   discount_pct: number | null;
@@ -53,13 +53,14 @@ function productToRow(product: Partial<Product>): Record<string, unknown> {
   if (product.name !== undefined) row.name = product.name;
   if (product.category !== undefined) row.category = product.category;
   if (product.price !== undefined) row.price = product.price;
-  if (product.originalPrice !== undefined) row.original_price = product.originalPrice;
-  if (product.discountPct !== undefined) row.discount_pct = product.discountPct;
+  // Kunci ada tapi nilainya kosong -> null, supaya admin benar-benar bisa menghapus harga coret / diskon / badge / bonus
+  if ('originalPrice' in product) row.original_price = product.originalPrice ?? null;
+  if ('discountPct' in product) row.discount_pct = product.discountPct ?? null;
   if (product.priceUnit !== undefined) row.price_unit = product.priceUnit;
   if (product.description !== undefined) row.description = product.description;
-  if (product.badge !== undefined) row.badge = product.badge;
+  if ('badge' in product) row.badge = product.badge || null;
   if (product.badgeType !== undefined) row.badge_type = product.badgeType;
-  if (product.bonus !== undefined) row.bonus = product.bonus;
+  if ('bonus' in product) row.bonus = product.bonus || null;
   if (product.features !== undefined) row.features = product.features;
   if (product.iconName !== undefined) row.icon_name = product.iconName;
   // Kosong/dihapus → null supaya kolom benar-benar dikosongkan di database
@@ -73,6 +74,9 @@ function productToRow(product: Partial<Product>): Record<string, unknown> {
 
 /** Pesan error yang menunjuk migrasi SQL bila kolom komisi belum ada di database. */
 function dbErrorMessage(prefix: string, message: string): string {
+  if (/products_category_check|violates check constraint.*category|invalid input value for enum/i.test(message)) {
+    return `${prefix}: database masih membatasi kategori ke pilihan lama. Jalankan migrasi 20261008000100_product_free_category.sql di Supabase SQL Editor.`;
+  }
   if (/commission_(type|value)/i.test(message)) {
     return `${prefix}: kolom komisi belum ada di database. Jalankan migrasi 20261006000200_product_commission.sql di Supabase SQL Editor.`;
   }

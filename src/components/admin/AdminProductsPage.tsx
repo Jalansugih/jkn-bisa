@@ -2,6 +2,9 @@ import React, { useRef, useState } from 'react';
 import { Product } from '../../types';
 import { addProduct, updateProduct, deleteProduct, setProductActive } from '../../lib/productService';
 import { uploadProductImage } from '../../lib/imageUpload';
+import { HOME_PRODUCT_LIMIT, isBestSeller, pickHomeProducts } from '../../lib/bestSellers';
+import { MAX_CATEGORY_LENGTH, buildCategoryOptions, categoryLabel, normalizeCategory } from '../../lib/productCategories';
+import { ProductCard } from '../products/ProductCard';
 import { commissionFor, commissionPhrase, formatRupiah as formatRp } from '../../lib/referral';
 import { useCommissionRate } from '../../lib/commissionRate';
 import {
@@ -63,7 +66,8 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
   // Form states
   const [formId, setFormId] = useState('');
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState<Product['category']>('website');
+  // Teks yang tampil di kolom kategori; diubah jadi nilai tersimpan lewat normalizeCategory saat disimpan
+  const [formCategory, setFormCategory] = useState<string>(categoryLabel('website'));
   const [formPrice, setFormPrice] = useState<number>(1500000);
   const [formOriginalPrice, setFormOriginalPrice] = useState<number | undefined>(3000000);
   const [formDiscountPct, setFormDiscountPct] = useState<number | undefined>(50);
@@ -84,6 +88,18 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
   // Features list manager
   const [featuresList, setFeaturesList] = useState<string[]>([]);
   const [newFeatureInput, setNewFeatureInput] = useState('');
+
+  // Produk yang benar-benar tampil di beranda (aturan sama persis dengan halaman publik)
+  const homeProductIds = new Set(pickHomeProducts(products).map((p) => p.id));
+  const homeFlaggedCount = products.filter((p) => p.active !== false && isBestSeller(p)).length;
+  // Slot beranda yang sudah dipakai produk aktif lain (selain produk dengan id ini)
+  const homeSlotsUsedByOthers = (id: string) =>
+    products.filter((p) => p.id !== id && p.active !== false && isBestSeller(p)).length;
+
+  const existingCategories = products.map((p) => p.category);
+  const categoryOptions = buildCategoryOptions(products);
+  const typedCategory = normalizeCategory(formCategory, existingCategories);
+  const isNewCategory = typedCategory !== '' && !categoryOptions.some((o) => o.id === typedCategory);
 
   const filteredProducts = products.filter((p) => {
     const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
@@ -106,7 +122,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     const newId = 'prod_' + Date.now().toString(36);
     setFormId(newId);
     setFormName('');
-    setFormCategory('website');
+    setFormCategory(categoryLabel('website'));
     setFormPrice(1500000);
     setFormOriginalPrice(3000000);
     setFormDiscountPct(50);
@@ -133,7 +149,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     setIsEditMode(true);
     setFormId(product.id);
     setFormName(product.name);
-    setFormCategory(product.category);
+    setFormCategory(categoryLabel(product.category));
     setFormPrice(product.price);
     setFormOriginalPrice(product.originalPrice);
     setFormDiscountPct(product.discountPct);
@@ -193,8 +209,21 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
       showToast('Nama produk wajib diisi!', 'warning');
       return;
     }
+    if (!typedCategory) {
+      showToast('Kategori wajib diisi. Pilih dari daftar atau ketik kategori baru.', 'warning');
+      return;
+    }
+    if (typedCategory.length > MAX_CATEGORY_LENGTH) {
+      showToast(`Nama kategori maksimal ${MAX_CATEGORY_LENGTH} karakter.`, 'warning');
+      return;
+    }
     if (formPrice <= 0) {
       showToast('Harga produk harus lebih dari 0!', 'warning');
+      return;
+    }
+    const willBeActive = isEditMode ? products.find((p) => p.id === formId)?.active !== false : true;
+    if (formPopular && willBeActive && homeSlotsUsedByOthers(formId) >= HOME_PRODUCT_LIMIT) {
+      showToast(`Halaman utama sudah berisi ${HOME_PRODUCT_LIMIT} produk. Matikan salah satu dulu, atau hilangkan centang produk ini.`, 'warning');
       return;
     }
     if (isUploadingImage) {
@@ -220,15 +249,22 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
       showToast('Tambahkan minimal 1 fitur produk!', 'warning');
       return;
     }
+    if (formOriginalPrice && Number(formOriginalPrice) <= Number(formPrice)) {
+      showToast('Harga coret harus lebih besar dari harga final. Kosongkan jika tidak ada diskon.', 'warning');
+      return;
+    }
 
     setIsSubmitting(true);
     const productPayload: Product = {
       id: formId,
       name: formName.trim(),
-      category: formCategory,
+      category: typedCategory,
       price: Number(formPrice),
       originalPrice: formOriginalPrice ? Number(formOriginalPrice) : undefined,
-      discountPct: formDiscountPct ? Number(formDiscountPct) : undefined,
+      // Persen diskon selalu dihitung dari harga, dan hanya ada bila ada harga coret
+      discountPct: formOriginalPrice
+        ? Math.round(((Number(formOriginalPrice) - Number(formPrice)) / Number(formOriginalPrice)) * 100)
+        : undefined,
       priceUnit: formPriceUnit.trim() || '/ paket',
       description: formDescription.trim(),
       badge: formBadge.trim() || undefined,
@@ -259,7 +295,30 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
     }
   };
 
+  const handleToggleHome = async (product: Product) => {
+    const turningOn = !product.popular;
+    if (turningOn && product.active !== false && homeSlotsUsedByOthers(product.id) >= HOME_PRODUCT_LIMIT) {
+      showToast(`Halaman utama sudah berisi ${HOME_PRODUCT_LIMIT} produk. Matikan salah satu dulu.`, 'warning');
+      return;
+    }
+    try {
+      await updateProduct(product.id, { popular: turningOn });
+      showToast(
+        turningOn
+          ? `"${product.name}" sekarang tampil di halaman utama.`
+          : `"${product.name}" tidak lagi tampil di halaman utama.`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast(err.message || 'Gagal mengubah tampilan di halaman utama.', 'error');
+    }
+  };
+
   const handleToggleActive = async (product: Product) => {
+    if (product.active === false && isBestSeller(product) && homeSlotsUsedByOthers(product.id) >= HOME_PRODUCT_LIMIT) {
+      showToast('Slot halaman utama sudah penuh. Matikan "Tampilkan di halaman utama" pada produk ini atau produk lain dulu.', 'warning');
+      return;
+    }
     try {
       await setProductActive(product.id, product.active === false);
       showToast(`Produk \"${product.name}\" ${product.active === false ? 'diaktifkan' : 'dinonaktifkan'}.`, 'success');
@@ -319,10 +378,11 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
               className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-hidden cursor-pointer"
             >
               <option value="all">Semua Kategori</option>
-              <option value="legalitas">Legalitas & Izin</option>
-              <option value="website">Website & Toko Online</option>
-              <option value="pos">Sistem Kasir POS</option>
-              <option value="bundling">Paket Bundling</option>
+              {categoryOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -335,6 +395,16 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
             <span>Tambah Layanan Baru</span>
           </button>
         </div>
+      </div>
+
+      {/* Info tampilan halaman utama */}
+      <div className="bg-blue-50/70 border border-blue-200 rounded-2xl px-4 py-3 text-xs text-blue-900">
+        <span className="font-bold">
+          Halaman utama: {Math.min(homeFlaggedCount, HOME_PRODUCT_LIMIT)} dari {HOME_PRODUCT_LIMIT} slot terpakai.
+        </span>{' '}
+        Nyalakan sakelar "Tampilkan di halaman utama" pada produk yang ingin ditampilkan. Semua produk aktif tetap muncul di halaman /produk.
+        {homeFlaggedCount > HOME_PRODUCT_LIMIT &&
+          ` Ada ${homeFlaggedCount} produk aktif yang dinyalakan, jadi hanya ${HOME_PRODUCT_LIMIT} pertama yang tampil. Matikan sebagian.`}
       </div>
 
       {/* Grid of Product Cards */}
@@ -366,15 +436,9 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${p.active === false ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                     {p.active === false ? 'INACTIVE' : 'ACTIVE'} · 
-                    {p.category}
+                    {categoryLabel(p.category)}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {p.popular && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        <span>Populer</span>
-                      </span>
-                    )}
                     {p.badge && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                         {p.badge}
@@ -430,6 +494,31 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                     </li>
                   )}
                 </ul>
+
+                {/* Sakelar tampil di halaman utama */}
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold text-slate-700">Tampilkan di halaman utama</div>
+                    {p.popular && p.active !== false && !homeProductIds.has(p.id) && (
+                      <div className="text-[10px] font-semibold text-amber-600">Slot penuh, belum tampil</div>
+                    )}
+                    {p.popular && p.active === false && (
+                      <div className="text-[10px] font-semibold text-slate-400">Produk nonaktif, tidak tampil</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={Boolean(p.popular)}
+                    aria-label={`Tampilkan ${p.name} di halaman utama`}
+                    onClick={() => handleToggleHome(p)}
+                    className={`relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${p.popular ? 'bg-blue-600' : 'bg-slate-300'}`}
+                  >
+                    <span
+                      className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${p.popular ? 'translate-x-4' : ''}`}
+                    />
+                  </button>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -535,18 +624,28 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
 
                 <div>
                   <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    Kategori
+                    Kategori <span className="text-rose-500">*</span>
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    required
+                    list="admin-product-categories"
+                    maxLength={MAX_CATEGORY_LENGTH}
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value as Product['category'])}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                  >
-                    <option value="website">Website</option>
-                    <option value="pos">Kasir POS</option>
-                    <option value="legalitas">Legalitas</option>
-                    <option value="bundling">Bundling</option>
-                  </select>
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    placeholder="Pilih atau ketik kategori baru"
+                    className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+                  />
+                  <datalist id="admin-product-categories">
+                    {categoryOptions.map((o) => (
+                      <option key={o.id} value={o.label} />
+                    ))}
+                  </datalist>
+                  <p className={`mt-1 text-[11px] ${isNewCategory ? 'font-semibold text-blue-600' : 'text-slate-400'}`}>
+                    {isNewCategory
+                      ? 'Kategori baru: otomatis jadi tab di halaman produk.'
+                      : 'Pilih dari daftar atau ketik kategori baru.'}
+                  </p>
                 </div>
               </div>
 
@@ -698,6 +797,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                     <option value="super">Merah (Super)</option>
                     <option value="bonus">Hijau (Bonus)</option>
                     <option value="hardware">Abu-abu (Hardware)</option>
+                    <option value="best">Kuning (Best Seller)</option>
                   </select>
                 </div>
 
@@ -839,10 +939,44 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
                     className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
                   />
                   <span className="font-bold text-slate-800">
-                    Tandai sebagai Paket Terpopuler / Paling Banyak Dipilih
+                    Tampilkan di halaman utama (maksimal {HOME_PRODUCT_LIMIT} produk, produk ini juga mendapat badge Terlaris)
                   </span>
                 </label>
               </div>
+
+              {/* Pratinjau kartu: memakai komponen kartu yang sama dengan website */}
+              <details open className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+                <summary className="cursor-pointer select-none text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Pratinjau Kartu di Website
+                </summary>
+                <div aria-hidden="true" className="pointer-events-none mx-auto mt-3 max-w-sm select-none">
+                  <ProductCard
+                    product={{
+                      id: formId || 'preview',
+                      name: formName.trim() || 'Nama produk',
+                      category: typedCategory || 'website',
+                      price: Number(formPrice) || 0,
+                      originalPrice: formOriginalPrice ? Number(formOriginalPrice) : undefined,
+                      priceUnit: formPriceUnit.trim() || '/ paket',
+                      description: formDescription.trim() || 'Deskripsi singkat produk akan tampil di sini.',
+                      badge: formBadge.trim() || undefined,
+                      badgeType: formBadgeType,
+                      features: featuresList,
+                      iconName: formIconName,
+                      imageUrl: formImageUrl.trim() || undefined,
+                      popular: formPopular,
+                      commissionType: formCommissionType,
+                      commissionValue: formCommissionType === 'default' ? 0 : Number(formCommissionValue),
+                    }}
+                    bestSeller={formPopular}
+                    onSelectProductOrder={() => {}}
+                    onAskWhatsapp={() => {}}
+                    referralCode={null}
+                    onRequireLogin={() => {}}
+                    showToast={() => {}}
+                  />
+                </div>
+              </details>
 
               {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

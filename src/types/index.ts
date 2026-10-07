@@ -1,7 +1,8 @@
 export interface Product {
   id: string;
   name: string;
-  category: 'website' | 'pos' | 'legalitas' | 'bundling';
+  /** Kategori bawaan: website | pos | legalitas | bundling. Admin boleh menulis kategori lain. */
+  category: string;
   price: number;
   originalPrice?: number;
   discountPct?: number;
