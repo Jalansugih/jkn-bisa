@@ -20,7 +20,6 @@ import {
   ChevronDown,
   Gift,
   Heart,
-  MessageCircle,
   ShoppingCart,
   ArrowRight,
   Sparkles,
@@ -32,6 +31,7 @@ import {
 } from 'lucide-react';
 
 import { categoryLabel } from '../../lib/productCategories';
+import { WhatsAppIcon } from '../common/WhatsAppIcon';
 
 const WISHLIST_KEY = 'bu_wishlist_products';
 const COLLAPSED_FEATURE_COUNT = 4;
@@ -340,9 +340,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               onClick={() => onAskWhatsapp(product.name)}
               title="Tanya via WhatsApp"
               aria-label={`Tanya ${product.name} via WhatsApp`}
-              className="col-span-1 flex cursor-pointer items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-600 transition-all duration-200 hover:bg-emerald-100 active:scale-95"
+              className="col-span-1 flex cursor-pointer items-center justify-center rounded-xl bg-[#25D366] p-3 text-white shadow-md shadow-[#25D366]/30 transition-all duration-200 hover:bg-[#1ebe5b] hover:shadow-[#25D366]/40 active:scale-95"
             >
-              <MessageCircle className="h-5 w-5" />
+              <WhatsAppIcon className="h-6 w-6" />
             </button>
             <button
               id={`btn-order-${product.id}`}
