@@ -1,64 +1,70 @@
-import { slugify } from './slug';
-
 /**
- * Kategori artikel. Enam kategori bawaan punya id tetap; admin boleh menulis
- * kategori lain secara manual. Yang disimpan di database:
- *   category        -> id (slug dari nama, mis. "hukum-pajak")
- *   category_label  -> nama tampilan apa adanya (mis. "Hukum & Pajak")
- * Tidak perlu migrasi: kedua kolom sudah berupa teks bebas.
+ * Kategori artikel (daftar tetap / dropdown).
+ *   category        -> id (slug) yang disimpan di database
+ *   category_label  -> nama tampilan
+ *
+ * PENTING: kolom `category` di database bertipe enum Postgres `article_category`.
+ * Setiap id di bawah HARUS ada di enum tersebut. Jalankan
+ * `supabase-article-categories.sql` sekali di SQL Editor Supabase.
+ *
+ * id 'legalitas' dipertahankan dari kategori lama agar artikel lama tetap cocok.
  */
 export interface ArticleCategoryOption {
   id: string;
   label: string;
 }
 
-export const DEFAULT_ARTICLE_CATEGORIES: ArticleCategoryOption[] = [
+export const ARTICLE_CATEGORIES: ArticleCategoryOption[] = [
+  { id: 'bisnis-umkm', label: 'Bisnis & UMKM' },
+  { id: 'teknologi-digital', label: 'Teknologi & Digital' },
+  { id: 'marketing-penjualan', label: 'Marketing & Penjualan' },
+  { id: 'keuangan-investasi', label: 'Keuangan & Investasi' },
   { id: 'legalitas', label: 'Legalitas & Perizinan' },
-  { id: 'digital', label: 'Digital & Website' },
-  { id: 'keuangan', label: 'Keuangan & Pajak' },
-  { id: 'pemasaran', label: 'Pemasaran & Branding' },
-  { id: 'operasional', label: 'Operasional & Kasir' },
-  { id: 'skala-usaha', label: 'Skala Usaha & Ekspor' },
+  { id: 'konstruksi-properti', label: 'Konstruksi & Properti' },
+  { id: 'pertanian-peternakan', label: 'Pertanian & Peternakan' },
+  { id: 'industri-manufaktur', label: 'Industri & Manufaktur' },
+  { id: 'perdagangan-retail', label: 'Perdagangan & Retail' },
+  { id: 'logistik-distribusi', label: 'Logistik & Distribusi' },
+  { id: 'pendidikan-karier', label: 'Pendidikan & Karier' },
+  { id: 'kuliner-fnb', label: 'Kuliner & F&B' },
+  { id: 'kesehatan-kecantikan', label: 'Kesehatan & Kecantikan' },
+  { id: 'kreatif-desain', label: 'Kreatif & Desain' },
+  { id: 'administrasi-produktivitas', label: 'Administrasi & Produktivitas' },
+  { id: 'berita-tren-bisnis', label: 'Berita & Tren Bisnis' },
+  { id: 'otomotif-transportasi', label: 'Otomotif & Transportasi' },
+  { id: 'energi-lingkungan', label: 'Energi & Lingkungan' },
+  { id: 'pariwisata-perhotelan', label: 'Pariwisata & Perhotelan' },
+  { id: 'pemerintahan-kebijakan-publik', label: 'Pemerintahan & Kebijakan Publik' },
+  { id: 'ekonomi-keuangan-digital', label: 'Ekonomi & Keuangan Digital' },
+  { id: 'franchise-kemitraan', label: 'Franchise & Kemitraan' },
+  { id: 'properti-investasi', label: 'Properti & Investasi' },
+  { id: 'gaya-hidup-produktivitas', label: 'Gaya Hidup & Produktivitas' },
+  { id: 'tips-tutorial', label: 'Tips & Tutorial' },
 ];
 
-export const MAX_ARTICLE_CATEGORY_LENGTH = 40;
+const KNOWN_IDS = new Set(ARTICLE_CATEGORIES.map((c) => c.id));
 
-const DEFAULT_IDS = new Set(DEFAULT_ARTICLE_CATEGORIES.map((c) => c.id));
+export const isKnownArticleCategory = (id: string) => KNOWN_IDS.has(id);
 
-export const isDefaultArticleCategory = (id: string) => DEFAULT_IDS.has(id);
+/** Label dari id; kategori lama yang tidak ada di daftar memakai label tersimpan / id-nya. */
+export const getArticleCategoryLabel = (id: string, fallbackLabel?: string) =>
+  ARTICLE_CATEGORIES.find((c) => c.id === id)?.label || (fallbackLabel || '').trim() || id;
 
-const norm = (s: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
-
-/** Kategori bawaan dulu, lalu kategori buatan admin (urutan pertama kali muncul). */
+/**
+ * Daftar untuk dropdown/filter admin: 25 kategori tetap + kategori lama
+ * (mis. "digital", "keuangan") yang masih dipakai artikel yang sudah ada,
+ * supaya artikel lama tetap bisa dibuka & diedit tanpa error.
+ */
 export function buildArticleCategoryOptions(
   articles: { category: string; categoryLabel?: string }[]
 ): ArticleCategoryOption[] {
-  const result = [...DEFAULT_ARTICLE_CATEGORIES];
-  const seen = new Set(DEFAULT_IDS);
+  const result = [...ARTICLE_CATEGORIES];
+  const seen = new Set(KNOWN_IDS);
   for (const a of articles) {
     const id = (a.category || '').trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    result.push({ id, label: (a.categoryLabel || '').trim() || id });
+    result.push({ id, label: `${(a.categoryLabel || '').trim() || id} (lama)` });
   }
   return result;
-}
-
-/**
- * Ubah teks yang diketik admin menjadi kategori yang disimpan.
- * - sama dengan nama/id kategori yang sudah ada (huruf besar/kecil diabaikan) -> pakai yang sudah ada,
- *   supaya tidak muncul dua tab kembar ("Hukum Pajak" dan "hukum pajak")
- * - selain itu: id = slug dari nama; bila slug itu sudah dipakai kategori lain, ditambah -2, -3, ...
- */
-export function resolveArticleCategory(input: string, options: ArticleCategoryOption[]): ArticleCategoryOption {
-  const label = (input || '').trim().replace(/\s+/g, ' ');
-  const key = norm(label);
-  const existing = options.find((o) => norm(o.label) === key || o.id.toLowerCase() === key);
-  if (existing) return existing;
-
-  const root = slugify(label) || 'kategori';
-  const taken = new Set(options.map((o) => o.id));
-  let id = root;
-  for (let i = 2; taken.has(id); i++) id = `${root}-${i}`;
-  return { id, label };
 }

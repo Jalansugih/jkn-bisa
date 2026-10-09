@@ -1,10 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Article } from '../../types';
-import {
-  MAX_ARTICLE_CATEGORY_LENGTH,
-  buildArticleCategoryOptions,
-  resolveArticleCategory,
-} from '../../lib/articleCategories';
+import { buildArticleCategoryOptions } from '../../lib/articleCategories';
 import { AdminSeed } from '../../types/admin';
 import { useAdminDialogs } from './AdminDialogs';
 import { addArticle, updateArticle, deleteArticle } from '../../lib/articleService';
@@ -43,9 +39,6 @@ interface AdminArticlesPageProps {
   onSeedConsumed?: () => void;
 }
 
-/** Nilai khusus pada dropdown kategori: admin menulis nama kategori sendiri. */
-const CUSTOM_CATEGORY = '__custom__';
-
 const PRESET_IMAGES = [
   { label: 'Kantor & Legalitas', url: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=600&h=400&fit=crop' },
   { label: 'Laptop & Coding', url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop' },
@@ -81,13 +74,9 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
   // Form State
   const [formId, setFormId] = useState('');
   const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState<string>('legalitas');
-  const [formCategoryLabel, setFormCategoryLabel] = useState('Legalitas & Perizinan');
-  // Kategori tulisan sendiri: aktif bila admin memilih "Tulis kategori sendiri…"
-  const [customCategoryMode, setCustomCategoryMode] = useState(false);
-  const [customCategoryText, setCustomCategoryText] = useState('');
+  const [formCategory, setFormCategory] = useState<string>('bisnis-umkm');
+  const [formCategoryLabel, setFormCategoryLabel] = useState('Bisnis & UMKM');
   const categoryOptions = useMemo(() => buildArticleCategoryOptions(articles), [articles]);
-  const customCategoryInputRef = useRef<HTMLInputElement>(null);
   const [formDate, setFormDate] = useState('');
   const [formReadTime, setFormReadTime] = useState('5 Min baca');
   const [formImage, setFormImage] = useState('');
@@ -129,8 +118,6 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
     setFormStatus('DRAFT');
     setFormCategory(categoryOptions[0].id);
     setFormCategoryLabel(categoryOptions[0].label);
-    setCustomCategoryMode(false);
-    setCustomCategoryText('');
     setFormDate(new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
     setFormReadTime('4 Min baca');
     setFormImage(PRESET_IMAGES[0].url);
@@ -157,8 +144,6 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
         article.category ||
         'Informasi'
     );
-    setCustomCategoryMode(false);
-    setCustomCategoryText('');
     setFormDate(article.date);
     setFormReadTime(article.readTime);
     setFormImage(article.image);
@@ -214,45 +199,15 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
   };
 
   const handleCategoryChange = (value: string) => {
-    if (value === CUSTOM_CATEGORY) {
-      setCustomCategoryMode(true);
-      window.setTimeout(() => customCategoryInputRef.current?.focus(), 0);
-      return;
-    }
-    setCustomCategoryMode(false);
     setFormCategory(value);
-    setFormCategoryLabel(categoryOptions.find((o) => o.id === value)?.label || value || 'Informasi');
+    setFormCategoryLabel(categoryOptions.find((o) => o.id === value)?.label.replace(/ \(lama\)$/, '') || value || 'Informasi');
   };
-
-  /** Kategori yang akan disimpan: dari dropdown, atau dari teks yang diketik admin. */
-  const resolvedCategory = customCategoryMode
-    ? customCategoryText.trim()
-      ? resolveArticleCategory(customCategoryText, categoryOptions)
-      : null
-    : { id: formCategory, label: formCategoryLabel };
-  const customMatchesExisting =
-    customCategoryMode && resolvedCategory
-      ? categoryOptions.some((o) => o.id === resolvedCategory.id)
-      : false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) {
       showToast('Judul artikel wajib diisi!', 'warning');
       return;
-    }
-    if (customCategoryMode) {
-      const typed = customCategoryText.trim().replace(/\s+/g, ' ');
-      if (!typed) {
-        showToast('Tulis nama kategori, atau pilih kategori dari daftar.', 'warning');
-        customCategoryInputRef.current?.focus();
-        return;
-      }
-      if (typed.length > MAX_ARTICLE_CATEGORY_LENGTH) {
-        showToast(`Nama kategori maksimal ${MAX_ARTICLE_CATEGORY_LENGTH} karakter.`, 'warning');
-        customCategoryInputRef.current?.focus();
-        return;
-      }
     }
     if (!formExcerpt.trim()) {
       showToast('Ringkasan / excerpt artikel wajib diisi!', 'warning');
@@ -279,8 +234,8 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
       title: formTitle.trim(),
       slug: formSlug.trim(),
       status: formStatus || 'DRAFT',
-      category: resolvedCategory?.id || formCategory,
-      categoryLabel: resolvedCategory?.label || formCategoryLabel,
+      category: formCategory,
+      categoryLabel: formCategoryLabel,
       date: formDate.trim() || new Date().toLocaleDateString('id-ID'),
       readTime: formReadTime.trim() || '4 Min baca',
       image: formImage.trim() || PRESET_IMAGES[0].url,
@@ -564,7 +519,7 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
                     Kategori Artikel
                   </label>
                   <select
-                    value={customCategoryMode ? CUSTOM_CATEGORY : formCategory}
+                    value={formCategory}
                     onChange={(e) => handleCategoryChange(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
@@ -573,35 +528,8 @@ export const AdminArticlesPage: React.FC<AdminArticlesPageProps> = ({
                         {o.label}
                       </option>
                     ))}
-                    <option value={CUSTOM_CATEGORY}>✎ Tulis kategori sendiri…</option>
                   </select>
 
-                  {customCategoryMode && (
-                    <div className="mt-2 space-y-1">
-                      <input
-                        ref={customCategoryInputRef}
-                        type="text"
-                        value={customCategoryText}
-                        onChange={(e) => setCustomCategoryText(e.target.value)}
-                        maxLength={MAX_ARTICLE_CATEGORY_LENGTH + 10}
-                        placeholder="Contoh: Hukum & Pajak"
-                        aria-label="Nama kategori baru"
-                        className="w-full p-2.5 rounded-xl bg-white border border-blue-300 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                      />
-                      <p className="text-[11px] text-slate-500 flex items-center justify-between gap-2">
-                        <span>
-                          {resolvedCategory
-                            ? customMatchesExisting
-                              ? `Sudah ada: akan memakai kategori "${resolvedCategory.label}".`
-                              : `Kategori baru "${resolvedCategory.label}" otomatis muncul di filter dan halaman artikel.`
-                            : 'Tulis nama kategori. Kategori baru otomatis muncul di filter dan halaman artikel.'}
-                        </span>
-                        <span className={customCategoryText.trim().length > MAX_ARTICLE_CATEGORY_LENGTH ? 'text-rose-600 font-bold' : 'text-slate-400'}>
-                          {customCategoryText.trim().length}/{MAX_ARTICLE_CATEGORY_LENGTH}
-                        </span>
-                      </p>
-                    </div>
-                  )}
                 </div>
 
                 <div>

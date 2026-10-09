@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ShareMenu } from './ShareMenu';
 import { createdMillis } from '../../lib/articleService';
 import { slugify } from '../../lib/slug';
-import { isDefaultArticleCategory } from '../../lib/articleCategories';
+import { ARTICLE_CATEGORIES, getArticleCategoryLabel } from '../../lib/articleCategories';
 import { Article } from '../../types';
 import { ARTICLES_DATA } from '../../data/mockData';
 import {
@@ -73,12 +73,6 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {
       all: allArticles.length,
-      legalitas: 0,
-      digital: 0,
-      keuangan: 0,
-      pemasaran: 0,
-      operasional: 0,
-      'skala-usaha': 0,
       bookmarks: bookmarkedArticles.length,
     };
     allArticles.forEach((art) => {
@@ -91,16 +85,17 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
     return counts;
   }, [allArticles, bookmarkedArticles]);
 
-  // Kategori tulisan admin (di luar 6 kategori bawaan): jadi tab tambahan
+  // Tab kategori: hanya kategori yang punya artikel (urutan sesuai daftar tetap, lalu kategori lama)
   const customCategories = useMemo(() => {
-    const seen = new Map<string, string>();
+    const used = new Map<string, string>();
     allArticles.forEach((art) => {
       const id = (art.category || '').trim();
-      if (id && !isDefaultArticleCategory(id) && !seen.has(id)) {
-        seen.set(id, (art.categoryLabel || '').trim() || id);
-      }
+      if (id && !used.has(id)) used.set(id, getArticleCategoryLabel(id, art.categoryLabel));
     });
-    return Array.from(seen, ([id, label]) => ({ id, label }));
+    const ordered = ARTICLE_CATEGORIES.filter((c) => used.has(c.id)).map((c) => ({ id: c.id, label: c.label }));
+    const known = new Set(ARTICLE_CATEGORIES.map((c) => c.id));
+    const legacy = Array.from(used, ([id, label]) => ({ id, label })).filter((c) => !known.has(c.id));
+    return [...ordered, ...legacy];
   }, [allArticles]);
 
   // Featured article (first featured one or default art_1)
@@ -385,90 +380,6 @@ export const ArticlesHubPage: React.FC<ArticlesHubPageProps> = ({
               <span>Semua</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'all' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
                 {categoryCounts.all}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSelectedCategory('legalitas')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === 'legalitas'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200'
-              }`}
-            >
-              <span>Legalitas & Izin</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'legalitas' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {categoryCounts.legalitas}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSelectedCategory('digital')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === 'digital'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200'
-              }`}
-            >
-              <span>Digital & Website</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'digital' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {categoryCounts.digital}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSelectedCategory('keuangan')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === 'keuangan'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200'
-              }`}
-            >
-              <span>Keuangan & Arus Kas</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'keuangan' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {categoryCounts.keuangan}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSelectedCategory('pemasaran')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === 'pemasaran'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200'
-              }`}
-            >
-              <span>Pemasaran & Ads</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'pemasaran' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {categoryCounts.pemasaran}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSelectedCategory('operasional')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === 'operasional'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200'
-              }`}
-            >
-              <span>Tips Usaha & SOP</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'operasional' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {categoryCounts.operasional}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setSelectedCategory('skala-usaha')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === 'skala-usaha'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200'
-              }`}
-            >
-              <span>Scale Up & Cabang</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${selectedCategory === 'skala-usaha' ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {categoryCounts['skala-usaha']}
               </span>
             </button>
 
