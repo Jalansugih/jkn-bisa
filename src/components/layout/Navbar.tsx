@@ -135,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex-shrink-0 flex items-center gap-2.5 cursor-pointer"
             >
              <div className="flex items-center gap-3">
-  <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-blue-500/20 bg-white border border-slate-200">
+  <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center shadow-sm shrink-0 bg-white border border-slate-700/20">
     <img
       src="/logo-rk-bendahara.png"
       alt="BinaUsaha logo"

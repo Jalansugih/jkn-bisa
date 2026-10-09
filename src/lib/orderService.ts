@@ -25,6 +25,7 @@ export interface OrderRow {
   email: string | null;
   total: string;
   order_date: string | null;
+  created_at?: string | null;
   status: OrderItem['status'];
   addons: string[] | null;
   notes: string | null;
@@ -49,6 +50,7 @@ export function rowToOrderItem(row: OrderRow): OrderItem {
     email: row.email || '',
     total: row.total || 'Rp 0',
     date: row.order_date || '',
+    createdAt: row.created_at || undefined,
     status: row.status || 'Verifikasi',
     addons: Array.isArray(row.addons) ? row.addons : [],
     notes: row.notes || '',

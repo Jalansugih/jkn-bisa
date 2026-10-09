@@ -379,8 +379,12 @@ export const SingleArticlePage: React.FC<SingleArticlePageProps> = ({
 
               {/* Author Bio Box */}
               <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white font-heading font-extrabold text-lg flex items-center justify-center shadow-md shadow-blue-600/20 flex-shrink-0">
-                  BU
+                <div className="w-8 h-8 rounded-md overflow-hidden flex items-center justify-center shadow-sm shrink-0 bg-white border border-slate-700/20">
+                  <img
+                  src="/logo-rk-bendahara.png"
+                  alt="BinaUsaha logo"
+                  className="w-full h-full object-contain"
+                />
                 </div>
                 <div className="space-y-2 text-center sm:text-left flex-1">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

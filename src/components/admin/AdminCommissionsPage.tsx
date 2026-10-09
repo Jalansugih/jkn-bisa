@@ -10,9 +10,12 @@ import {
 import { formatRupiah } from '../../lib/referral';
 import { adminSetCommissionRate, useCommissionRate } from '../../lib/commissionRate';
 import { AdminPayout, adminFetchPayouts, adminMarkPayoutPaid, adminRejectPayout } from '../../lib/payoutService';
+import { useAdminDialogs } from './AdminDialogs';
 
 interface Props {
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  /** Dipanggil setelah pencairan berubah supaya Ikhtisar & lonceng ikut diperbarui. */
+  onDataChanged?: () => void | Promise<void>;
 }
 
 const REFUND_DAYS = 14; // masa tunggu sebelum komisi boleh disetujui
@@ -30,7 +33,8 @@ const STATUS_LABEL: Record<CommissionStatus, string> = {
   cancelled: 'Dibatalkan',
 };
 
-export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
+export const AdminCommissionsPage: React.FC<Props> = ({ showToast, onDataChanged }) => {
+  const { confirm, prompt, dialogs } = useAdminDialogs();
   const [rows, setRows] = useState<AdminCommission[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -50,7 +54,12 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
       showToast('Isi tarif antara 0 sampai 100.', 'warning');
       return;
     }
-    if (!confirm(`Ubah tarif komisi menjadi ${pct}%?\n\nHanya berlaku untuk pesanan yang dilunasi setelah ini. Komisi yang sudah tercatat tidak berubah.`)) return;
+    const ok = await confirm({
+      title: `Ubah tarif komisi menjadi ${pct}%?`,
+      message: 'Hanya berlaku untuk pesanan yang dilunasi setelah ini. Komisi yang sudah tercatat tidak berubah.',
+      confirmLabel: 'Ya, simpan tarif',
+    });
+    if (!ok) return;
     setSavingRate(true);
     try {
       await adminSetCommissionRate(pct);
@@ -85,15 +94,20 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
   useEffect(() => { load(); loadPayouts(); }, [load, loadPayouts]);
 
   const markPayoutPaid = async (p: AdminPayout) => {
-    const ref = prompt(
-      `Transfer ${formatRupiah(p.amount)} ke ${p.bank_name} ${p.account_number} a.n. ${p.account_name}.\n\nMasukkan nomor referensi / catatan transfer (boleh dikosongkan):`
-    );
+    const ref = await prompt({
+      title: 'Tandai sudah ditransfer',
+      message: `Pastikan Anda sudah mentransfer ${formatRupiah(p.amount)} ke ${p.bank_name} ${p.account_number} a.n. ${p.account_name}. Setelah ditandai, komisi terkait berstatus Dibayar.`,
+      label: 'Nomor referensi / catatan transfer (opsional)',
+      placeholder: 'Contoh: TRX-20261009-001',
+      confirmLabel: 'Ya, sudah ditransfer',
+    });
     if (ref === null) return;
     setBusyPayoutId(p.id);
     try {
       await adminMarkPayoutPaid(p.id, ref);
       showToast('Pencairan ditandai sudah ditransfer.', 'success');
       await Promise.all([load(), loadPayouts()]);
+      await onDataChanged?.();
     } catch (e: any) {
       showToast(e.message, 'error');
     } finally {
@@ -102,7 +116,16 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
   };
 
   const rejectPayout = async (p: AdminPayout) => {
-    const reason = prompt('Alasan menolak pencairan (akan dilihat user):');
+    const reason = await prompt({
+      title: 'Tolak pengajuan pencairan?',
+      message: `${formatRupiah(p.amount)} untuk ${p.user?.name || p.user?.email || 'mitra'}. Komisinya kembali ke status Disetujui dan alasan ini akan terlihat oleh pengguna.`,
+      label: 'Alasan penolakan',
+      placeholder: 'Contoh: Nama rekening tidak sesuai dengan nama akun',
+      multiline: true,
+      required: true,
+      confirmLabel: 'Tolak pencairan',
+      tone: 'danger',
+    });
     if (reason === null) return;
     if (!reason.trim()) { showToast('Isi alasan penolakan.', 'warning'); return; }
     setBusyPayoutId(p.id);
@@ -110,6 +133,7 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
       await adminRejectPayout(p.id, reason);
       showToast('Pencairan ditolak. Komisi kembali ke Disetujui.', 'success');
       await Promise.all([load(), loadPayouts()]);
+      await onDataChanged?.();
     } catch (e: any) {
       showToast(e.message, 'error');
     } finally {
@@ -136,7 +160,15 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
   });
 
   const setStatus = async (r: AdminCommission, status: CommissionStatus, confirmMsg?: string) => {
-    if (confirmMsg && !confirm(confirmMsg)) return;
+    if (confirmMsg) {
+      const ok = await confirm({
+        title: status === 'cancelled' ? 'Batalkan komisi?' : 'Setujui komisi?',
+        message: confirmMsg,
+        confirmLabel: status === 'cancelled' ? 'Ya, batalkan' : 'Ya, setujui',
+        tone: status === 'cancelled' ? 'danger' : 'primary',
+      });
+      if (!ok) return;
+    }
     setBusyId(r.id);
     try {
       await adminSetCommissionStatus(r.id, status);
@@ -150,7 +182,12 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
   };
 
   const approveOld = async () => {
-    if (!confirm(`Setujui semua komisi "Menunggu" yang sudah lebih dari ${REFUND_DAYS} hari?`)) return;
+    const ok = await confirm({
+      title: 'Setujui komisi yang melewati masa refund?',
+      message: `Semua komisi berstatus Menunggu yang usianya lebih dari ${REFUND_DAYS} hari akan disetujui dan masuk ke daftar yang bisa dicairkan mitra.`,
+      confirmLabel: 'Ya, setujui semua',
+    });
+    if (!ok) return;
     try {
       const n = await adminApproveOlderThan(REFUND_DAYS);
       showToast(n ? `${n} komisi disetujui.` : 'Tidak ada komisi yang memenuhi syarat.', n ? 'success' : 'info');
@@ -364,6 +401,7 @@ export const AdminCommissionsPage: React.FC<Props> = ({ showToast }) => {
           </table>
         </div>
       </div>
+      {dialogs}
     </div>
   );
 };

@@ -43,15 +43,26 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           {/* Col 1 */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-heading font-bold shadow-md shadow-blue-500/20">
-                B
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center shadow-sm shrink-0 bg-white border border-slate-700/20">
+                <img
+                  src="/logo-rk-bendahara.png"
+                  alt="BinaUsaha logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
-              <span className="font-heading font-bold text-lg text-white">
-                BinaUsaha<span className="text-blue-400">.id</span>
-              </span>
+
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-white">
+                  Bina Usaha
+                </h1>
+                <span className="text-[10px] block text-slate-500 -mt-1 font-semibold tracking-wider uppercase">
+                  Build Your Business
+                </span>
+              </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed mb-4">
+            {/*Kasih Jarak Jangan terlalu rapat*/}
+            <p className="text-xs text-slate-400 leading-relaxed mt-4 mb-4">
               Solusi Umkm Platform digital dan penghubung kebutuhan legalitas & operasional usaha, dengan jaringan mitra profesional terverifikasi.
             </p>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
@@ -256,7 +267,6 @@ export const Footer: React.FC<FooterProps> = ({
               >
                 <Lock className="w-3.5 h-3.5" /> Kebijakan Privasi
               </a>
-
             </div>
           </div>
         </div>

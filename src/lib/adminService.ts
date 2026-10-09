@@ -9,7 +9,7 @@ import { OrderRow, rowToOrderItem } from './orderService';
 
 /**
  * Subscribe real-time ke SEMUA order di Supabase untuk Admin portal
- * (pengganti onSnapshot Firestore).
+ * (realtime lewat Supabase channel).
  */
 export function subscribeToAllOrders(
   callback: (orders: OrderItem[]) => void
@@ -23,7 +23,7 @@ export function subscribeToAllOrders(
     const { data, error } = await supabase
       .from('orders')
       .select('*')
-      .order('id', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('[subscribeToAllOrders] Supabase error:', error);
@@ -102,6 +102,7 @@ interface ProfileRow {
   provider: AdminUserListItem['provider'];
   role: 'admin' | 'customer';
   joined_at: string | null;
+  created_at?: string | null;
 }
 
 function rowToAdminUser(row: ProfileRow): AdminUserListItem {
@@ -114,7 +115,8 @@ function rowToAdminUser(row: ProfileRow): AdminUserListItem {
     avatar: row.avatar || '',
     provider: row.provider || 'form',
     role: row.role || 'customer',
-    joinedAt: row.joined_at || '2025',
+    joinedAt: row.joined_at || (row.created_at ? new Date(row.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'),
+    createdAt: row.created_at || undefined,
   };
 }
 
@@ -130,7 +132,10 @@ export function subscribeToAllUsers(
   }
 
   const fetchAndEmit = async () => {
-    const { data, error } = await supabase.from('profiles').select('*');
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) {
       console.error('[subscribeToAllUsers] Supabase error:', error);
       callback([]);

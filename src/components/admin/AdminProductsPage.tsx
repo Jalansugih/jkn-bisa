@@ -1,5 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Product } from '../../types';
+import { AdminSeed } from '../../types/admin';
+import { useAdminDialogs } from './AdminDialogs';
 import { addProduct, updateProduct, deleteProduct, setProductActive } from '../../lib/productService';
 import { uploadProductImage } from '../../lib/imageUpload';
 import { HOME_PRODUCT_LIMIT, isBestSeller, pickHomeProducts } from '../../lib/bestSellers';
@@ -37,6 +39,9 @@ interface AdminProductsPageProps {
   products: Product[];
   onOpenOrder: (productKey: string) => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  /** Perintah dari pencarian global/lonceng: isi pencarian lalu hapus filter kategori. */
+  seed?: AdminSeed | null;
+  onSeedConsumed?: () => void;
 }
 
 const ICON_OPTIONS = [
@@ -55,9 +60,20 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
   products,
   onOpenOrder,
   showToast,
+  seed,
+  onSeedConsumed,
 }) => {
+  const { confirm, dialogs } = useAdminDialogs();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (!seed) return;
+    setSearchQuery(seed.query ?? '');
+    setSelectedCategory('all');
+    onSeedConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -328,9 +344,13 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
   };
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`Yakin ingin menghapus produk "${product.name}"? Layanan ini akan hilang dari katalog website utama.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Hapus produk dari katalog?',
+      message: `"${product.name}" akan hilang dari katalog website utama dan formulir order. Pesanan lama yang sudah memakai produk ini tetap tersimpan.\n\nJika hanya ingin menyembunyikan sementara, pakai tombol nonaktifkan.`,
+      confirmLabel: 'Ya, hapus produk',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await deleteProduct(product.id);
       showToast(`Produk "${product.name}" berhasil dihapus.`, 'info');
@@ -1009,6 +1029,7 @@ export const AdminProductsPage: React.FC<AdminProductsPageProps> = ({
           </div>
         </div>
       )}
+      {dialogs}
     </div>
   );
 };

@@ -71,3 +71,31 @@ export async function adminApproveOlderThan(days: number): Promise<number> {
   if (error) throw new Error(`Gagal menyetujui komisi: ${error.message}`);
   return data?.length || 0;
 }
+
+export interface OrderCommissionState {
+  status: CommissionStatus;
+  amount: number;
+  /** Terisi bila komisi sudah masuk pengajuan pencairan. */
+  payout_id: string | null;
+}
+
+/**
+ * Status komisi milik satu pesanan (khusus admin). Dipakai sebelum menghapus
+ * pesanan: tabel komisi terhubung ON DELETE CASCADE ke pesanan, jadi menghapus
+ * pesanan ikut menghapus komisinya, termasuk yang sudah disetujui/dibayar.
+ */
+export async function adminGetOrderCommission(orderId: string): Promise<OrderCommissionState | null> {
+  const db = client();
+  let res: { data: unknown; error: { message: string } | null } = await db
+    .from('commissions')
+    .select('status, amount, payout_id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+  if (res.error && /payout_id/i.test(res.error.message)) {
+    res = await db.from('commissions').select('status, amount').eq('order_id', orderId).maybeSingle();
+  }
+  if (res.error) throw new Error(`Gagal memeriksa komisi pesanan: ${res.error.message}`);
+  const row = res.data as { status: CommissionStatus; amount: number; payout_id?: string | null } | null;
+  if (!row) return null;
+  return { status: row.status, amount: Number(row.amount) || 0, payout_id: row.payout_id ?? null };
+}

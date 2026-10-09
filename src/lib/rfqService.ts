@@ -38,6 +38,7 @@ function rowToRfqItem(row: RfqRow): RfqItem {
     waktu: row.waktu || '',
     status: row.status || 'Baru',
     adminNotes: row.admin_notes || '',
+    createdAtIso: row.created_at || undefined,
     createdAt: row.created_at
       ? new Date(row.created_at).toLocaleDateString('id-ID', {
           day: 'numeric',
@@ -86,6 +87,7 @@ export async function submitRfq(formData: RfqFormData): Promise<RfqItem> {
     waktu: formData.waktu?.trim() || '',
     status: 'Baru',
     createdAt: new Date().toISOString(),
+    createdAtIso: new Date().toISOString(),
   };
 
   if (isSupabaseConfigured && supabase) {
@@ -165,7 +167,10 @@ export async function updateRfqStatus(
     const updates: Record<string, unknown> = { status };
     if (adminNotes !== undefined) updates.admin_notes = adminNotes;
     const { error } = await supabase.from('rfqs').update(updates).eq('id', rfqId);
-    if (error) console.error('[updateRfqStatus] Supabase error:', error);
+    if (error) {
+      console.error('[updateRfqStatus] Supabase error:', error);
+      throw new Error(`Gagal memperbarui RFQ: ${error.message}`);
+    }
   }
 
   try {
@@ -185,7 +190,10 @@ export async function updateRfqStatus(
 export async function deleteRfq(rfqId: string): Promise<void> {
   if (isSupabaseConfigured && supabase) {
     const { error } = await supabase.from('rfqs').delete().eq('id', rfqId);
-    if (error) console.error('[deleteRfq] Supabase error:', error);
+    if (error) {
+      console.error('[deleteRfq] Supabase error:', error);
+      throw new Error(`Gagal menghapus RFQ: ${error.message}`);
+    }
   }
 
   try {

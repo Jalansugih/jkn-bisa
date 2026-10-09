@@ -27,7 +27,8 @@ export interface Product {
 export interface Article {
   id: string;
   title: string;
-  category: 'legalitas' | 'digital' | 'keuangan' | 'pemasaran' | 'operasional' | 'skala-usaha';
+  /** id kategori: salah satu dari 6 bawaan, atau slug kategori tulisan admin (lihat lib/articleCategories). */
+  category: string;
   categoryLabel: string;
   date: string;
   readTime: string;
@@ -66,6 +67,8 @@ export interface OrderItem {
   email?: string;
   total: string;
   date: string;
+  /** Waktu pesanan dibuat (ISO, dari kolom created_at). Dipakai admin untuk grafik & urutan. */
+  createdAt?: string;
   status: 'Verifikasi' | 'Pengerjaan' | 'QC & Training' | 'Selesai';
   addons?: string[];
   notes?: string;
