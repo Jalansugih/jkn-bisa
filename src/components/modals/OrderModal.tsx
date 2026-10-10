@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Product, OrderItem } from '../../types';
+import { Product, OrderItem, AuthUser } from '../../types';
 import { PRODUCTS_DATA } from '../../data/mockData';
 import { AVAILABLE_PAYMENT_METHODS as PAYMENT_METHODS, PaymentMethodId, PaymentGroup } from '../../data/paymentMethods';
 import {
@@ -15,6 +15,7 @@ import {
   Landmark,
   QrCode,
   Wallet,
+  UserCheck,
 } from 'lucide-react';
 
 interface OrderModalProps {
@@ -22,6 +23,8 @@ interface OrderModalProps {
   onClose: () => void;
   productKey: string;
   products?: Product[];
+  /** User yang sedang login. Jika ada, data diri otomatis diisi dari akun & form tidak ditampilkan lagi. */
+  currentUser?: AuthUser | null;
   onOrderCompleted: (
     orderDraft: Omit<OrderItem, 'id' | 'date' | 'status'>,
     method: 'whatsapp' | 'online'
@@ -36,6 +39,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   onClose,
   productKey,
   products,
+  currentUser,
   onOrderCompleted,
   showToast,
 }) => {
@@ -54,6 +58,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
 
+  const [showNotes, setShowNotes] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('bca');
 
@@ -76,10 +81,28 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setCouponMessage(null);
       setDiscountAmount(0);
       setPaymentMethod('bca');
+      setShowNotes(false);
+      setNotes('');
     }
   }, [isOpen, productKey]);
 
+  // Akun sudah login -> isi otomatis data diri dari profil (tanpa menimpa yang sudah diketik)
+  useEffect(() => {
+    if (!isOpen || !currentUser) return;
+    setName((v) => v || currentUser.name || '');
+    setBrand((v) => v || currentUser.businessName || '');
+    setWhatsapp((v) => v || currentUser.whatsapp || '');
+    setEmail((v) => v || currentUser.email || '');
+  }, [isOpen, currentUser]);
+
   if (!isOpen) return null;
+
+  const isLoggedIn = !!currentUser;
+  // Untuk user login, form hanya muncul jika data wajib di profil masih kosong
+  const missingName = !name.trim();
+  const missingBrand = !brand.trim();
+  const missingWa = !whatsapp.trim();
+  const needsProfileForm = !isLoggedIn || missingName || missingBrand || missingWa;
 
   const basePrice = product.price;
   const addonsPrice = (addonDomain ? 150000 : 0) + (addonExpress ? 300000 : 0);
@@ -167,7 +190,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <p className="text-xs text-slate-500">
                 {step === 'cart'
                   ? 'Periksa paket & layanan tambahan Anda'
-                  : 'Lengkapi data diri untuk menyelesaikan pesanan'}
+                  : needsProfileForm
+                  ? 'Lengkapi data diri untuk menyelesaikan pesanan'
+                  : 'Pilih metode pembayaran untuk menyelesaikan pesanan'}
               </p>
             </div>
           </div>
@@ -379,59 +404,101 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </div>
               </div>
 
-              {/* Customer Info Form */}
-              <div className="space-y-3 pt-1">
-                <label className="block font-heading font-bold text-xs text-slate-900">
-                  Data Diri & Identitas Usaha
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    id="custName"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
-                    placeholder="Nama Lengkap Pemilik *"
-                  />
-                  <input
-                    type="text"
-                    id="custBrand"
-                    required
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
-                    placeholder="Nama Usaha / Toko *"
+              {/* Data diri: ringkas untuk user login, form lengkap untuk tamu */}
+              {isLoggedIn && !needsProfileForm ? (
+                <div className="space-y-2">
+                  <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-3 text-xs flex items-start gap-2.5">
+                    <UserCheck className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 truncate">{name}</p>
+                      <p className="text-slate-600 truncate">
+                        {brand} &middot; {whatsapp}
+                        {email ? ` · ${email}` : ''}
+                      </p>
+                      <p className="text-[10px] text-blue-700 font-semibold mt-0.5">
+                        Data diambil dari akun Anda
+                      </p>
+                    </div>
+                  </div>
+                  {showNotes ? (
+                    <textarea
+                      id="custNotes"
+                      rows={2}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none resize-none transition"
+                      placeholder="Catatan khusus atau bidang usaha Anda (opsional)..."
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowNotes(true)}
+                      className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      + Tambah catatan (opsional)
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  <label className="block font-heading font-bold text-xs text-slate-900">
+                    {isLoggedIn ? 'Lengkapi Data yang Belum Terisi' : 'Data Diri & Identitas Usaha'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(!isLoggedIn || missingName) && (
+                      <input
+                        type="text"
+                        id="custName"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
+                        placeholder="Nama Lengkap Pemilik *"
+                      />
+                    )}
+                    {(!isLoggedIn || missingBrand) && (
+                      <input
+                        type="text"
+                        id="custBrand"
+                        required
+                        value={brand}
+                        onChange={(e) => setBrand(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
+                        placeholder="Nama Usaha / Toko *"
+                      />
+                    )}
+                    {(!isLoggedIn || missingWa) && (
+                      <input
+                        type="tel"
+                        id="custWA"
+                        required
+                        value={whatsapp}
+                        onChange={(e) => setWhatsapp(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
+                        placeholder="No WhatsApp (Aktif) *"
+                      />
+                    )}
+                    {!isLoggedIn && (
+                      <input
+                        type="email"
+                        id="custEmail"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
+                        placeholder="Alamat Email"
+                      />
+                    )}
+                  </div>
+                  <textarea
+                    id="custNotes"
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none resize-none transition"
+                    placeholder="Catatan khusus atau bidang usaha Anda..."
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="tel"
-                    id="custWA"
-                    required
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
-                    placeholder="No WhatsApp (Aktif) *"
-                  />
-                  <input
-                    type="email"
-                    id="custEmail"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"
-                    placeholder="Alamat Email"
-                  />
-                </div>
-                <textarea
-                  id="custNotes"
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none resize-none transition"
-                  placeholder="Catatan khusus atau bidang usaha Anda..."
-                />
-              </div>
+              )}
 
               {/* Metode Pembayaran */}
               <div className="space-y-2 pt-1">

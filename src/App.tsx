@@ -794,6 +794,7 @@ export const App: React.FC = () => {
         onClose={() => setIsOrderModalOpen(false)}
         productKey={selectedProductKey}
         products={products}
+        currentUser={currentUser}
         onOrderCompleted={handleOrderCompleted}
         showToast={showToast}
       />
